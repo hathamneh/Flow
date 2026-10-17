@@ -10,6 +10,11 @@ import io.github.aedev.flow.data.youtubeaccount.probe.SyncProbeCheck.PLAYLIST_SA
 import io.github.aedev.flow.data.youtubeaccount.probe.SyncProbeCheck.PLAYLIST_UNSAVE
 import io.github.aedev.flow.data.youtubeaccount.probe.SyncProbeSession.Companion.PLAYLISTS
 import io.github.aedev.flow.data.youtubeaccount.probe.SyncProbeSession.Companion.UNKNOWN
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.contentOrNull
 
 /** One of the account's library playlists, as the first page of its `VL` browse shows it. */
 internal data class LibraryPlaylist(
@@ -18,6 +23,8 @@ internal data class LibraryPlaylist(
     val editable: Boolean,
     val entries: Int,
     val withSetVideoId: Int,
+    /** The page's endpoint and command kinds and button icons, to find what sets the owner's pages apart. */
+    val signals: Set<String> = emptySet(),
 )
 
 /**
@@ -47,7 +54,7 @@ internal suspend fun SyncProbeSession.probePlaylistOwnership(): List<LibraryPlay
                 read.sumOf { it.withSetVideoId }.toString(),
                 read.sumOf { it.entries }.toString(),
             ),
-        ),
+        ) + signalNotes(read),
     )
     return read
 }
@@ -59,7 +66,56 @@ private suspend fun SyncProbeSession.firstPage(
 ): LibraryPlaylist {
     val page = api.browse(auth, browseId = "VL$id")
     val entries = YouTubeAccountParsers.playlistEntries(page)
-    return LibraryPlaylist(id, title, YouTubeAccountParsers.isEditable(page), entries.size, entries.count { it.setVideoId != null })
+    return LibraryPlaylist(
+        id,
+        title,
+        YouTubeAccountParsers.isEditable(page),
+        entries.size,
+        entries.count { it.setVideoId != null },
+        signals(page),
+    )
+}
+
+/** Per playlist, the signals not every page has: what could tell the owner's playlists from saved ones. */
+private fun signalNotes(read: List<LibraryPlaylist>): List<SyncProbeNote> {
+    if (read.isEmpty()) return emptyList()
+    val common = read.map { it.signals }.reduce { a, b -> a intersect b }
+    return read.map { playlist ->
+        SyncProbeNote(
+            R.string.yt_probe_note_playlist_signals,
+            playlist.title,
+            (playlist.signals - common).sorted().joinToString().ifEmpty {
+                "none"
+            },
+        )
+    }
+}
+
+private fun signals(element: JsonElement): Set<String> {
+    val found = HashSet<String>()
+
+    fun walk(node: JsonElement) {
+        when (node) {
+            is JsonObject -> {
+                node.forEach { (key, value) ->
+                    if (key.endsWith("Endpoint") || key.endsWith("Command")) found += key
+                    if (key == "iconType") (value as? JsonPrimitive)?.contentOrNull?.let { found += "icon:$it" }
+                    if (key == "privacy" || key == "privacyStatus") (value as? JsonPrimitive)?.contentOrNull?.let { found += "privacy:$it" }
+                    walk(value)
+                }
+            }
+
+            is JsonArray -> {
+                node.forEach(::walk)
+            }
+
+            else -> {
+                Unit
+            }
+        }
+    }
+    walk(element)
+    return found
 }
 
 /**

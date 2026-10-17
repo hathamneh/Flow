@@ -55,7 +55,14 @@ class YouTubePlaylistMerge
                             }.awaitAll()
                     }
                 walks.forEach { (playlist, walk) ->
-                    val done = if (walk.editable) mergeOwned(auth, accountId, playlist) else keepSaved(playlist, walk.videos)
+                    val done =
+                        if (OWNERSHIP_DETECTED &&
+                            walk.editable
+                        ) {
+                            mergeOwned(auth, accountId, playlist)
+                        } else {
+                            keepSaved(playlist, walk.videos)
+                        }
                     if (done) updated++
                 }
             }
@@ -213,5 +220,9 @@ class YouTubePlaylistMerge
             const val PLAYLIST_PAGES = 10
             const val MAX_PLAYLISTS = 60
             const val PARALLEL = 4
+
+            // Off until the owner's pages can be told apart: every library playlist offers
+            // playlistEditEndpoint on the TV pages, saved ones included (diagnostics run 18).
+            const val OWNERSHIP_DETECTED = false
         }
     }

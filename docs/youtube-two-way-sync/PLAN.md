@@ -196,7 +196,7 @@ All of these passed the probe, including dislikes and likes on music videos, whi
   - Saved playlists still replace.
 - **Deletes:** YouTube's delete doesn't work, so a playlist deleted or unsaved in Flow is tombstoned per account and isn't brought back while YouTube still lists it. A playlist missing from a complete read of the list, compared with the `playlists` snapshot, is removed locally.
 - **Badge:** "Only in Flow" in the playlist header on phone and TV, for the viewer's own playlists without a `remoteId` while an account is signed in.
-- **Waiting on the diagnostics run:** PLAYLIST_OWNERSHIP (is the edit-endpoint test right?), PLAYLIST_RENAME_OWN, and PLAYLIST_SAVE/UNSAVE. If rename or save fails, those mutations are rejected and counted as couldn't sync. They then get turned off.
+- **Run 18:** rename, save and unsave pass. Ownership detection via `playlistEditEndpoint` is wrong, because every library playlist has it, so owned playlists are turned off (`OWNERSHIP_DETECTED = false`) and all account playlists stay saved copies. The diagnostics now print each page's endpoint, command and icon kinds, to find what sets owned playlists apart.
 
 ### Phase 3: history (2–3 pd)
 

@@ -74,3 +74,13 @@ Open questions from FINDINGS.md §6:
 | 4 | Yes: a music-video like lands in VLLM. Artist subscribe is untested, but plain subscribe works. |
 | 5 | Pause/resume are accepted; the state can't be read. |
 | 6 | Audited in Phase 1. Device sync and backup restore called the user-facing like/unsubscribe methods; they now pass `mirror = false`. See PLAN.md, "Phase 1 as built". |
+
+
+## Run 18 (Phase 2 diagnostics)
+
+| Check | Result | Notes |
+|---|---|---|
+| PLAYLIST_OWNERSHIP | **Wrong split** | All 12 library playlists show `playlistEditEndpoint`, saved series included, so it can't tell owned from saved. Owned detection is turned off (`OWNERSHIP_DETECTED = false`) until a better signal turns up. The next run prints per-page signals. |
+| PLAYLIST_RENAME_OWN | **Pass** | "Books" → "Books · Flow test" → "Books" (restored). `ACTION_SET_PLAYLIST_NAME` works on own playlists. |
+| PLAYLIST_SAVE / UNSAVE | **Pass** | `like/like` and `like/removelike` with a playlist target add and remove it in FEplaylist_aggregation. |
+| PLAYLIST_ADD / MOVE / REMOVE | Pass | As before, on WL. |

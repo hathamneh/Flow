@@ -4499,6 +4499,7 @@
     <string name="yt_probe_note_nothing_left">Nothing left to delete</string>
     <string name="yt_probe_note_own_playlists">Yours (they offer edits): %1$s</string>
     <string name="yt_probe_note_saved_playlists">Saved: %1$s</string>
+    <string name="yt_probe_note_playlist_signals">%1$s: %2$s</string>
     <string name="yt_probe_note_no_own_playlist">No playlist of yours was found to rename</string>
     <string name="yt_probe_note_name_restored">Name restored to %1$s</string>
     <string name="yt_probe_note_left_renamed">Still named %1$s. Rename it back to %2$s on youtube.com.</string>
