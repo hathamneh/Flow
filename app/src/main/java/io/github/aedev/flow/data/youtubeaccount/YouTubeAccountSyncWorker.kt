@@ -52,19 +52,34 @@ class YouTubeAccountSyncWorker(
 
         private val connected = Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build()
 
-        /** Called when Flow is opened; the sync itself skips the run if it synced moments ago. */
+        private const val START_DELAY_S = 10L
+
+        @Volatile
+        private var requested = false
+
+        /**
+         * Called when Flow is opened; the sync itself skips the run if it synced moments ago. Once per
+         * process, and delayed: a job bound while the app is still starting competes with startup for the
+         * main thread, and on a slow TV that tipped launches into not-responding kills.
+         */
         fun requestSync(context: Context) {
+            if (requested) return
+            requested = true
             val work =
                 OneTimeWorkRequestBuilder<YouTubeAccountSyncWorker>()
                     .setConstraints(connected)
+                    .setInitialDelay(START_DELAY_S, TimeUnit.SECONDS)
                     .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, BACKOFF_MINUTES, TimeUnit.MINUTES)
                     .build()
             val workManager = WorkManager.getInstance(context)
-            workManager.enqueueUniqueWork(ONE_TIME_NAME, ExistingWorkPolicy.KEEP, work)
+            workManager.enqueueUniqueWork(ONE_TIME_NAME, ExistingWorkPolicy.REPLACE, work)
             workManager.enqueueUniquePeriodicWork(
                 PERIODIC_NAME,
                 ExistingPeriodicWorkPolicy.KEEP,
-                PeriodicWorkRequestBuilder<YouTubeAccountSyncWorker>(PERIOD_HOURS, TimeUnit.HOURS).setConstraints(connected).build(),
+                PeriodicWorkRequestBuilder<YouTubeAccountSyncWorker>(PERIOD_HOURS, TimeUnit.HOURS)
+                    .setConstraints(connected)
+                    .setInitialDelay(PERIOD_HOURS, TimeUnit.HOURS)
+                    .build(),
             )
         }
     }

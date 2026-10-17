@@ -30,6 +30,7 @@ import io.github.aedev.flow.ui.screens.home.HomeViewModel
 import io.github.aedev.flow.ui.screens.music.MusicPlayerViewModel
 import io.github.aedev.flow.ui.screens.music.MusicViewModel
 import io.github.aedev.flow.ui.screens.search.SearchViewModel
+import io.github.aedev.flow.ui.screens.settings.youtubeaccount.ProfileStatusViewModel
 import io.github.aedev.flow.ui.screens.settings.youtubeaccount.YouTubeAccountViewModel
 import io.github.aedev.flow.ui.screens.subscriptions.SubscriptionsViewModel
 import io.github.aedev.flow.ui.tv.components.TvNavRail
@@ -71,6 +72,8 @@ fun TvShell(
     val accountViewModel: YouTubeAccountViewModel = hiltViewModel()
     val accounts by accountViewModel.state.collectAsStateWithLifecycle()
     var profilesOpen by remember { mutableStateOf(false) }
+    val profileStatus: ProfileStatusViewModel = hiltViewModel()
+    val syncing by profileStatus.syncing.collectAsStateWithLifecycle()
     val railFocusRequester = remember { FocusRequester() }
 
     val tabHistory = remember { mutableStateListOf<TvDestination>() }
@@ -137,7 +140,7 @@ fun TvShell(
             onSelected = ::selectTab,
             onFocusChanged = { railHasFocus = it },
             selectedFocusRequester = railFocusRequester,
-            profile = TvRailProfile(accounts.active) { profilesOpen = true },
+            profile = TvRailProfile(accounts.active, syncing = syncing != null) { profilesOpen = true },
             modifier =
                 Modifier
                     .align(Alignment.CenterStart)

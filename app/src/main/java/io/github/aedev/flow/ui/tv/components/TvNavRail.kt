@@ -163,6 +163,7 @@ fun TvNavRail(
 /** Who is watching, shown at the foot of the rail; selecting it opens the profile picker. */
 class TvRailProfile(
     val account: YouTubeAccount?,
+    val syncing: Boolean,
     val onClick: () -> Unit,
 )
 
@@ -209,7 +210,7 @@ private fun TvProfileRailItem(
                         overflow = TextOverflow.Ellipsis,
                     )
                     Text(
-                        text = switchLabel,
+                        text = if (profile.syncing) stringResource(R.string.profile_syncing) else switchLabel,
                         style = MaterialTheme.typography.bodySmall,
                         maxLines = 1,
                     )

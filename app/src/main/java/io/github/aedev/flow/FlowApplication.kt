@@ -100,7 +100,8 @@ class FlowApplication :
     override fun onCreate() {
         super.onCreate()
         appContext = applicationContext
-        YouTube.cacheDirectory = cacheDir.resolve("innertube_http_cache")
+        // Setting this loads the InnerTube client, whose first load is seconds of work on a slow TV.
+        CoroutineScope(SupervisorJob() + Dispatchers.IO).launch { YouTube.cacheDirectory = cacheDir.resolve("innertube_http_cache") }
 
         DiscordPresenceRuntime.initialize(this, okHttpClient)
 

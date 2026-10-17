@@ -52,6 +52,7 @@ import io.github.aedev.flow.player.PictureInPictureHelper
 import io.github.aedev.flow.player.PipQueueNavigation
 import io.github.aedev.flow.ui.FlowApp
 import io.github.aedev.flow.ui.IncomingLinks
+import io.github.aedev.flow.ui.components.account.ProfileStatusOverlay
 import io.github.aedev.flow.ui.components.library.message
 import io.github.aedev.flow.ui.components.shared.ProvideChannelGroupLabels
 import io.github.aedev.flow.ui.components.shared.ProvideDateDisplaySettings
@@ -305,6 +306,7 @@ class MainActivity : ComponentActivity() {
                                         )
                                     }
                                 }
+                                ProfileStatusOverlay()
                             }
                         }
                     }

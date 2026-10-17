@@ -134,3 +134,13 @@ sealed interface YouTubeSignInProgress {
 
 /** Raised when a refresh token is no longer accepted, so the account is flagged for a new sign-in. */
 class YouTubeAuthRevokedException : Exception("Google no longer accepts this account's sign-in")
+
+/** What a running sync is doing, for the status shown over the app. */
+data class SyncProgress(
+    val accountName: String,
+    val phase: Phase,
+    /** The profile's first sync: its whole import from YouTube. */
+    val firstImport: Boolean,
+) {
+    enum class Phase { HISTORY, SUBSCRIPTIONS, LIBRARY }
+}

@@ -11,8 +11,12 @@ import io.github.aedev.flow.data.local.ViewHistory
 import io.github.aedev.flow.data.model.Video
 import io.github.aedev.flow.data.recommendation.FlowNeuroEngine
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.yield
 import java.io.IOException
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -36,6 +40,10 @@ class YouTubeAccountSync
         private val library: YouTubeLibrarySync,
     ) {
         private val lock = Mutex()
+        private val _progress = MutableStateFlow<SyncProgress?>(null)
+
+        /** The sync in progress, or null when none is running. */
+        val progress: StateFlow<SyncProgress?> = _progress.asStateFlow()
         private val viewHistory by lazy { ViewHistory.getInstance(context) }
         private val subscriptions by lazy { SubscriptionRepository.getInstance(context) }
 
@@ -51,10 +59,9 @@ class YouTubeAccountSync
 
         /** The background sync: skipped when the last one is recent, light (a few pages) otherwise. */
         suspend fun syncIfStale(): Result? {
-            val active = store.current().active ?: return null
-            if (System.currentTimeMillis() - store.lastHistoryPull(active.id) < MIN_SYNC_INTERVAL_MS) return null
-            val libraryDue = System.currentTimeMillis() - store.lastLibraryPull(active.id) >= LIBRARY_SYNC_INTERVAL_MS
-            return sync(historyPages = BACKGROUND_HISTORY_PAGES, includeLibrary = libraryDue)
+            // A sync already running (a sign-in's or a manual one) covers this request.
+            if (lock.isLocked) return null
+            return sync(historyPages = BACKGROUND_HISTORY_PAGES, includeLibrary = false, onlyIfStale = true)
         }
 
         /** A full pull, from the settings page: more history, subscriptions and the library. Null in guest mode. */
@@ -63,16 +70,38 @@ class YouTubeAccountSync
         private suspend fun sync(
             historyPages: Int,
             includeLibrary: Boolean,
+            onlyIfStale: Boolean = false,
         ): Result? =
             lock.withLock {
                 try {
+                    var pages = historyPages
+                    var withLibrary = includeLibrary
+                    var firstImport = false
+                    if (onlyIfStale) {
+                        // Read under the lock, so a request queued behind a sync sees the pull it just made.
+                        val active = store.current().active ?: return@withLock null
+                        val lastPull = store.lastHistoryPull(active.id)
+                        if (System.currentTimeMillis() - lastPull < MIN_SYNC_INTERVAL_MS) return@withLock null
+                        // A profile's first sync is its import from YouTube: as much as a manual sync pulls.
+                        firstImport = lastPull == 0L
+                        if (firstImport) pages = FULL_HISTORY_PAGES
+                        withLibrary = firstImport ||
+                            System.currentTimeMillis() - store.lastLibraryPull(active.id) >= LIBRARY_SYNC_INTERVAL_MS
+                    }
                     accounts.withActiveAuth { account, auth ->
-                        val videos = pullHistory(auth, historyPages)
+                        fun step(phase: SyncProgress.Phase) {
+                            _progress.value = SyncProgress(account.name, phase, firstImport)
+                        }
+                        // Subscriptions first: a handful of requests that fill the Subscriptions feed right away.
+                        step(SyncProgress.Phase.SUBSCRIPTIONS)
                         val channels = pullSubscriptions(auth)
+                        step(SyncProgress.Phase.HISTORY)
+                        val videos = pullHistory(auth, pages)
                         val now = System.currentTimeMillis()
                         store.setLastHistoryPull(account.id, now)
                         val libraryResult =
-                            if (includeLibrary) {
+                            if (withLibrary) {
+                                step(SyncProgress.Phase.LIBRARY)
                                 library.pull(auth).also { store.setLastLibraryPull(account.id, now) }
                             } else {
                                 YouTubeLibrarySync.Result(likes = 0, playlists = 0)
@@ -84,6 +113,8 @@ class YouTubeAccountSync
                 } catch (e: IOException) {
                     Log.w(TAG, "Account sync failed", e)
                     throw e
+                } finally {
+                    _progress.value = null
                 }
             }
 
@@ -160,8 +191,12 @@ class YouTubeAccountSync
                     )
                 }
             if (videos.isEmpty()) return
-            runCatching { FlowNeuroEngine.bootstrapFromWatchHistory(context, videos) }
-                .onFailure { Log.w(TAG, "Engine could not learn from synced history", it) }
+            // In small batches: each holds the engine's lock, which the home feed waits on to rank.
+            videos.chunked(ENGINE_LEARN_BATCH).forEach { batch ->
+                runCatching { FlowNeuroEngine.bootstrapFromWatchHistory(context, batch) }
+                    .onFailure { Log.w(TAG, "Engine could not learn from synced history", it) }
+                yield()
+            }
         }
 
         private companion object {
@@ -176,6 +211,7 @@ class YouTubeAccountSync
             const val FULL_HISTORY_PAGES = 25
             const val SUBSCRIPTION_PAGES = 10
             const val ENGINE_LEARN_LIMIT = 500
+            const val ENGINE_LEARN_BATCH = 50
             const val ORDER_STEP_MS = 1_000L
             const val PERCENT = 100
             const val MS_PER_SECOND = 1000L

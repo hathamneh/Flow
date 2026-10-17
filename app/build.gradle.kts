@@ -185,10 +185,20 @@ android {
             val nightlyKey = signingConfigs.getByName("nightly")
             signingConfig = if (nightlyKey.storeFile?.exists() == true) nightlyKey else signingConfigs.getByName("debug")
         }
+        // Flow Sync: release performance (R8, AOT-compilable) installed over the debug build, sharing its
+        // app id and debug signature so profiles and data carry over.
+        create("sync") {
+            initWith(getByName("release"))
+            applicationIdSuffix = ".debug"
+            versionNameSuffix = "-sync"
+            matchingFallbacks += "release"
+            signingConfig = signingConfigs.getByName("debug")
+        }
     }
 
     sourceSets {
         getByName("androidTest").assets.directories.add("$projectDir/schemas")
+        getByName("sync").res.directories.add("src/debug/res")
     }
 
     compileOptions {

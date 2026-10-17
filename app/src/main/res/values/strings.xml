@@ -4382,6 +4382,16 @@
     <string name="profile_guest">Guest</string>
     <string name="profile_guest_summary">Not linked to Google</string>
     <string name="profile_add_summary">A new profile with its own history</string>
+    <string name="profile_switching_to">Switching to %1$s</string>
+    <string name="profile_switching_to_guest">Switching to Guest</string>
+    <string name="profile_switching_detail">Flow is reopening with this profile\'s history and suggestions</string>
+    <string name="profile_import_title">Importing %1$s\'s YouTube</string>
+    <string name="profile_import_history">Watch history…</string>
+    <string name="profile_import_subscriptions">Subscriptions…</string>
+    <string name="profile_import_library">Likes, Watch later and playlists…</string>
+    <string name="profile_now_watching_as">Watching as %1$s</string>
+    <string name="profile_now_watching_as_guest">Watching as Guest</string>
+    <string name="profile_syncing">Syncing…</string>
     <string name="profile_switch_note">Flow restarts to open another profile.</string>
     <string name="youtube_account_remove_summary">Signs this account out and deletes its profile from this device: its history, likes and suggestions here.</string>
 </resources>
