@@ -1149,10 +1149,15 @@ class PlayerPreferences(
         context.playerPreferencesDataStore.data
             .map { preferences -> preferences[Keys.WATCH_HISTORY_PAUSED] ?: false }
 
-    suspend fun setWatchHistoryPaused(paused: Boolean) {
+    /** Pausing in Flow pauses the signed-in account's history too; a restore passes [mirror] false. */
+    suspend fun setWatchHistoryPaused(
+        paused: Boolean,
+        mirror: Boolean = true,
+    ) {
         context.playerPreferencesDataStore.edit { preferences ->
             preferences[Keys.WATCH_HISTORY_PAUSED] = paused
         }
+        if (mirror) LibraryMirror.report(LibraryChange.HistoryPaused(paused))
     }
 
     val homeNavigationEnabled: Flow<Boolean> =

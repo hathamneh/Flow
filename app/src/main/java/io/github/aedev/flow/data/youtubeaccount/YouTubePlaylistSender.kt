@@ -34,7 +34,7 @@ class YouTubePlaylistSender
                     api.setPlaylistSaved(auth, mutation.playlistId, mutation.saved)
                 }
 
-                is YouTubeMutation.Rate, is YouTubeMutation.Subscribe -> {
+                else -> {
                     error("Not a playlist change: ${mutation.key}")
                 }
             }

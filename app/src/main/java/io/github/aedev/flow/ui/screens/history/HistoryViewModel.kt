@@ -14,6 +14,7 @@ import io.github.aedev.flow.data.repository.YouTubeRepository
 import io.github.aedev.flow.data.shorts.ShortsContentFilter
 import io.github.aedev.flow.data.shorts.queue.ShortsQueueHandoff
 import io.github.aedev.flow.data.shorts.queue.ShortsQueueSource
+import io.github.aedev.flow.data.youtubeaccount.YouTubeAccountStore
 import io.github.aedev.flow.utils.PerformanceDispatcher
 import io.github.aedev.flow.utils.ThumbnailUrlResolver
 import kotlinx.coroutines.Dispatchers
@@ -72,7 +73,14 @@ class HistoryViewModel
         private val watchHistoryDao: WatchHistoryDao,
         private val shortsContentFilter: ShortsContentFilter,
         private val shortsQueueHandoff: ShortsQueueHandoff,
+        accounts: YouTubeAccountStore,
     ) : ViewModel() {
+        /** Whether clearing may also clear the signed-in account's YouTube history. */
+        val canClearOnYouTube: StateFlow<Boolean> =
+            accounts.state
+                .map { it.active != null && it.reportHistory }
+                .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000L), false)
+
         private val isEnriching = AtomicBoolean(false)
         private val attemptedEnrichment = HashSet<String>()
         private val sharing = SharingStarted.WhileSubscribed(stopTimeoutMillis = 5_000L)
@@ -314,9 +322,9 @@ class HistoryViewModel
             }
         }
 
-        fun clearHistory() {
+        fun clearHistory(alsoOnYouTube: Boolean) {
             viewModelScope.launch {
-                viewHistory.clearAllHistory()
+                viewHistory.clearAllHistory(alsoOnYouTube)
             }
         }
 
@@ -328,13 +336,13 @@ class HistoryViewModel
 
         fun removeFromHistory(videoId: String) {
             viewModelScope.launch {
-                viewHistory.clearVideoHistory(videoId)
+                viewHistory.removeFromHistory(videoId)
             }
         }
 
         fun restoreHistoryEntry(entry: VideoHistoryEntry) {
             viewModelScope.launch {
-                viewHistory.bulkSaveHistoryEntries(listOf(entry))
+                viewHistory.restoreRemovedEntry(entry)
             }
         }
     }

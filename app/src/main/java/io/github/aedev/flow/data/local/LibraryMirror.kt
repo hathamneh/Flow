@@ -48,6 +48,32 @@ sealed interface LibraryChange {
     data class PlaylistDeleted(
         val remoteId: String,
     ) : LibraryChange
+
+    /** A video watched in Flow whose opening history ping didn't get through: sent again later. */
+    data class HistoryWatched(
+        val videoId: String,
+        val positionMs: Long,
+        val durationMs: Long,
+    ) : LibraryChange
+
+    /** Removed from history in Flow. Sent after the undo window, unless [HistoryRestored] comes first. */
+    data class HistoryRemoved(
+        val videoId: String,
+    ) : LibraryChange
+
+    /** A removal undone in Flow. */
+    data class HistoryRestored(
+        val videoId: String,
+    ) : LibraryChange
+
+    /** All of Flow's history cleared; YouTube's too only when the viewer ticked it ([alsoOnYouTube]). */
+    data class HistoryCleared(
+        val alsoOnYouTube: Boolean,
+    ) : LibraryChange
+
+    data class HistoryPaused(
+        val paused: Boolean,
+    ) : LibraryChange
 }
 
 enum class LibraryRating { LIKED, DISLIKED, NONE }

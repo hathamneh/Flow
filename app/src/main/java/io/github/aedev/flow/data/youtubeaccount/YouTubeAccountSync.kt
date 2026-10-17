@@ -38,6 +38,7 @@ class YouTubeAccountSync
         private val api: YouTubeAccountApi,
         private val library: YouTubeLibrarySync,
         private val merge: YouTubeLibraryMerge,
+        private val snapshots: YouTubeRemoteSnapshot,
     ) {
         private val lock = Mutex()
         private val _progress = MutableStateFlow<SyncProgress?>(null)
@@ -98,7 +99,7 @@ class YouTubeAccountSync
                         step(SyncProgress.Phase.SUBSCRIPTIONS)
                         val channels = pullSubscriptions(auth, account.id)
                         step(SyncProgress.Phase.HISTORY)
-                        val videos = pullHistory(auth, pages)
+                        val videos = pullHistory(auth, account.id, pages)
                         val now = System.currentTimeMillis()
                         store.setLastHistoryPull(account.id, now)
                         val libraryResult =
@@ -122,16 +123,38 @@ class YouTubeAccountSync
 
         private suspend fun pullHistory(
             auth: YouTubeAccountApi.Auth,
+            accountId: String,
             maxPages: Int,
         ): Int {
             if (PlayerPreferences(context).isWatchHistorySavingBlocked()) return 0
+            // Cleared in Flow only: mark where YouTube's history stands now and bring none of it back.
+            if (snapshots.get(accountId, YouTubeRemoteSnapshot.HISTORY_FLOOR_PENDING) != null) {
+                val newest = YouTubeAccountParsers.history(api.browse(auth, browseId = HISTORY_BROWSE_ID)).map { it.videoId }
+                snapshots.put(accountId, YouTubeRemoteSnapshot.HISTORY_FLOOR, newest.take(FLOOR_SIZE))
+                snapshots.drop(accountId, YouTubeRemoteSnapshot.HISTORY_FLOOR_PENDING)
+                return 0
+            }
+            val floor =
+                snapshots
+                    .get(accountId, YouTubeRemoteSnapshot.HISTORY_FLOOR)
+                    ?.ids
+                    .orEmpty()
+                    .toHashSet()
+            val removed =
+                snapshots
+                    .get(accountId, YouTubeRemoteSnapshot.HISTORY_REMOVED)
+                    ?.ids
+                    .orEmpty()
+                    .toHashSet()
             val fresh = LinkedHashMap<String, RemoteHistoryItem>()
             api.browsePages(auth, HISTORY_BROWSE_ID, maxPages) { page ->
-                val items = YouTubeAccountParsers.history(page)
+                val all = YouTubeAccountParsers.history(page)
+                val window = historyWindow(all.map { it.videoId }, floor, removed)
+                val items = all.filter { it.videoId in window.ids }
                 val known = viewHistory.knownVideoIds(items.map { it.videoId })
                 items.filterNot { it.videoId in known }.forEach { fresh.putIfAbsent(it.videoId, it) }
                 // Once a whole page is already here, everything older is too: stop paging.
-                items.isNotEmpty() && items.any { it.videoId !in known }
+                !window.reachedFloor && items.isNotEmpty() && items.any { it.videoId !in known }
             }
             if (fresh.isEmpty()) return 0
 
@@ -196,6 +219,9 @@ class YouTubeAccountSync
             const val TAG = "YouTubeAccountSync"
             const val HISTORY_BROWSE_ID = "FEhistory"
 
+            /** How many of YouTube's newest history entries mark a Flow-only clear. */
+            const val FLOOR_SIZE = 20
+
             const val MIN_SYNC_INTERVAL_MS = 10 * 60_000L
             const val LIBRARY_SYNC_INTERVAL_MS = 6 * 60 * 60_000L
             const val BACKGROUND_HISTORY_PAGES = 3
@@ -208,3 +234,23 @@ class YouTubeAccountSync
             const val MS_PER_SECOND = 1000L
         }
     }
+
+/** The part of a history page the pull may import, and whether it reached the mark of a Flow-only clear. */
+internal data class HistoryWindow(
+    val ids: Set<String>,
+    val reachedFloor: Boolean,
+)
+
+/**
+ * Reads one page of YouTube's history ([page], newest first) for import: everything before the first
+ * [floor] entry (what YouTube had when history was cleared in Flow), less what was [removed] in Flow.
+ */
+internal fun historyWindow(
+    page: List<String>,
+    floor: Set<String>,
+    removed: Set<String>,
+): HistoryWindow {
+    val end = page.indexOfFirst { it in floor }
+    val before = if (end < 0) page else page.subList(0, end)
+    return HistoryWindow(before.filterNot { it in removed }.toSet(), reachedFloor = end >= 0)
+}

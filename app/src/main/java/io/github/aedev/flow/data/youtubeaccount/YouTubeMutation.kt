@@ -72,6 +72,39 @@ sealed interface YouTubeMutation {
         override val key get() = "$SAVE_PREFIX$playlistId"
     }
 
+    /** A watch record for [videoId] up to [positionMs]. Shares its key with a removal, so the newest wins. */
+    @Serializable
+    @SerialName("history_watch")
+    data class HistoryWatch(
+        val videoId: String,
+        val positionMs: Long,
+        val durationMs: Long,
+    ) : YouTubeMutation {
+        override val key get() = "$HISTORY_PREFIX$videoId"
+    }
+
+    @Serializable
+    @SerialName("history_remove")
+    data class HistoryRemove(
+        val videoId: String,
+    ) : YouTubeMutation {
+        override val key get() = "$HISTORY_PREFIX$videoId"
+    }
+
+    @Serializable
+    @SerialName("history_clear")
+    data object ClearHistory : YouTubeMutation {
+        override val key get() = CLEAR_HISTORY_KEY
+    }
+
+    @Serializable
+    @SerialName("history_pause")
+    data class PauseHistory(
+        val paused: Boolean,
+    ) : YouTubeMutation {
+        override val key get() = PAUSE_HISTORY_KEY
+    }
+
     companion object {
         const val RATE_PREFIX = "rate:"
         const val SUBSCRIBE_PREFIX = "sub:"
@@ -79,6 +112,9 @@ sealed interface YouTubeMutation {
         const val ORDER_PREFIX = "plorder:"
         const val RENAME_PREFIX = "plname:"
         const val SAVE_PREFIX = "plsave:"
+        const val HISTORY_PREFIX = "hist:"
+        const val CLEAR_HISTORY_KEY = "histclear"
+        const val PAUSE_HISTORY_KEY = "histpause"
 
         /** YouTube's id for Watch later, in edits and in outbox keys. */
         const val WATCH_LATER = "WL"
@@ -108,6 +144,17 @@ sealed interface YouTubeMutation {
 
                 // Not sent: the outbox keeps it from coming back on the next pull instead.
                 is LibraryChange.PlaylistDeleted -> emptyList()
+
+                is LibraryChange.HistoryWatched -> listOf(HistoryWatch(change.videoId, change.positionMs, change.durationMs))
+
+                is LibraryChange.HistoryRemoved -> listOf(HistoryRemove(change.videoId))
+
+                // Cancels the queued removal instead (see YouTubeOutbox).
+                is LibraryChange.HistoryRestored -> emptyList()
+
+                is LibraryChange.HistoryCleared -> if (change.alsoOnYouTube) listOf(ClearHistory) else emptyList()
+
+                is LibraryChange.HistoryPaused -> listOf(PauseHistory(change.paused))
             }
 
         /** The ids behind the queued keys that start with [prefix], for masking the pull. */

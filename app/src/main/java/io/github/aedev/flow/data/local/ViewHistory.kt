@@ -216,6 +216,18 @@ class ViewHistory private constructor(
         dao.deleteEntry(videoId)
     }
 
+    /** The viewer removing a video from their history; the signed-in account's history follows. */
+    suspend fun removeFromHistory(videoId: String) {
+        dao.deleteEntry(videoId)
+        LibraryMirror.report(LibraryChange.HistoryRemoved(videoId))
+    }
+
+    /** Undoes [removeFromHistory], before the removal reaches the account. */
+    suspend fun restoreRemovedEntry(entry: VideoHistoryEntry) {
+        bulkSaveHistoryEntries(listOf(entry))
+        LibraryMirror.report(LibraryChange.HistoryRestored(entry.videoId))
+    }
+
     /**
      * Marks the given video as fully watched (position = duration) so it no longer
      * appears in the continue-watching mini-player popup on the next app launch.
@@ -224,8 +236,10 @@ class ViewHistory private constructor(
         dao.markAsWatched(videoId)
     }
 
-    suspend fun clearAllHistory() {
+    /** Clears Flow's history; the account's too with [alsoOnYouTube], which the viewer chooses each time. */
+    suspend fun clearAllHistory(alsoOnYouTube: Boolean = false) {
         dao.clearAll()
+        LibraryMirror.report(LibraryChange.HistoryCleared(alsoOnYouTube))
     }
 
     suspend fun clearShortsHistory() {

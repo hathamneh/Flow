@@ -207,6 +207,16 @@ All of these passed the probe, including dislikes and likes on music videos, whi
 - Mark watched through a full-length ping, once `/player` gives tracking URLs again.
 - Move the reporter's first "open" ping onto the outbox, so a failed ping isn't lost.
 
+#### Phase 3 as built
+
+- **Mutations:** `hist:<video>` is shared by `HistoryWatch` and `HistoryRemove`, so the newest wins. Plus `histclear` (`ClearHistory`) and `histpause` (`PauseHistory`). `YouTubeHistorySender` sends them.
+- **Upload switch:** every history change is dropped at enqueue when the account's "upload history" option is off.
+- **Remove:** History screen → `ViewHistory.removeFromHistory` reports `HistoryRemoved`. The outbox holds it for a 10 s undo window, scheduling a delayed round. Undo (`restoreRemovedEntry`) deletes the queued key. The sender looks up the feedback token on the first history pages, and a video not found counts as nothing to remove. Removed ids (latest 500, `history_removed`) are skipped by the pull. Home's "remove from Continue watching" stays local.
+- **Clear:** the clear dialog has an "Also clear YouTube history" checkbox, off every time it opens and shown only while signed in with uploads on. A Flow-only clear sets `history_floor_pending`. The next pull stores YouTube's 20 newest entries as `history_floor` and imports nothing, and later pulls stop at the first floor id (`historyWindow`, pure and tested). A YouTube clear drops queued `hist:` keys, the removal list and the floor.
+- **Pause:** Flow's "Pause watch history" setting also sends pause/resume (`PlayerPreferences.setWatchHistoryPaused(mirror = true)`). This goes one way only, because the account's state can't be read.
+- **Mark as watched:** a watch record opened at ≥95% of the duration also sends watch time 0 → end right away, the pair that showed the watched bar in run 17.
+- **Reporter:** an opening ping that fails retryably (offline, 5xx, 429) is queued as `HistoryWatched` instead of being lost.
+
 ### Phase 4: read-through state (1–2 pd)
 
 - The bell is **dropped**. `modify_channel_preference` is 400; re-subscribing with the bell params is accepted, but it isn't reflected. The bell stays local to Flow.

@@ -8,8 +8,11 @@ import io.github.aedev.flow.data.local.dao.WatchHistoryDao
 import io.github.aedev.flow.data.repository.YouTubeRepository
 import io.github.aedev.flow.data.shorts.ShortsContentFilter
 import io.github.aedev.flow.data.shorts.queue.ShortsQueueHandoff
+import io.github.aedev.flow.data.youtubeaccount.YouTubeAccountStore
+import io.github.aedev.flow.data.youtubeaccount.YouTubeAccountsState
 import io.mockk.coEvery
 import io.mockk.coVerify
+import io.mockk.every
 import io.mockk.mockk
 import io.mockk.unmockkAll
 import kotlinx.coroutines.Dispatchers
@@ -30,6 +33,7 @@ class HistoryViewModelTest {
     private val youTubeRepository: YouTubeRepository = mockk(relaxed = true)
     private val videoDao: VideoDao = mockk(relaxed = true)
     private val watchHistoryDao: WatchHistoryDao = mockk(relaxed = true)
+    private val accounts: YouTubeAccountStore = mockk { every { state } returns flowOf(YouTubeAccountsState()) }
 
     @Before
     fun setUp() {
@@ -69,6 +73,7 @@ class HistoryViewModelTest {
                     watchHistoryDao,
                     ShortsContentFilter(flowOf(true)),
                     ShortsQueueHandoff(),
+                    accounts,
                 )
             testDispatcher.scheduler.advanceUntilIdle()
 
@@ -79,7 +84,7 @@ class HistoryViewModelTest {
         }
 
     @Test
-    fun `clearHistory delegates to viewHistory clearAllHistory`() =
+    fun `clearHistory delegates to viewHistory clearAllHistory with the viewer's choice`() =
         runTest {
             coEvery { viewHistory.getAllHistory() } returns flowOf(emptyList())
 
@@ -91,15 +96,16 @@ class HistoryViewModelTest {
                     watchHistoryDao,
                     ShortsContentFilter(flowOf(true)),
                     ShortsQueueHandoff(),
+                    accounts,
                 )
-            viewModel.clearHistory()
+            viewModel.clearHistory(alsoOnYouTube = false)
             testDispatcher.scheduler.advanceUntilIdle()
 
-            coVerify(exactly = 1) { viewHistory.clearAllHistory() }
+            coVerify(exactly = 1) { viewHistory.clearAllHistory(false) }
         }
 
     @Test
-    fun `removeFromHistory delegates to viewHistory clearVideoHistory`() =
+    fun `removeFromHistory delegates to viewHistory removeFromHistory`() =
         runTest {
             coEvery { viewHistory.getAllHistory() } returns flowOf(emptyList())
 
@@ -111,10 +117,11 @@ class HistoryViewModelTest {
                     watchHistoryDao,
                     ShortsContentFilter(flowOf(true)),
                     ShortsQueueHandoff(),
+                    accounts,
                 )
             viewModel.removeFromHistory("vid_123")
             testDispatcher.scheduler.advanceUntilIdle()
 
-            coVerify(exactly = 1) { viewHistory.clearVideoHistory("vid_123") }
+            coVerify(exactly = 1) { viewHistory.removeFromHistory("vid_123") }
         }
 }

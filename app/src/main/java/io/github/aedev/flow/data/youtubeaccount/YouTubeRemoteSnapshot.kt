@@ -144,6 +144,20 @@ class YouTubeRemoteSnapshot
             store.edit { it[deletedKey(accountId)] = it[deletedKey(accountId)].orEmpty() + id }
         }
 
+        /** Remembers a video removed from history in Flow, newest first, so the pull doesn't bring it back. */
+        suspend fun addHistoryRemoved(
+            accountId: String,
+            videoId: String,
+        ) {
+            val kept = get(accountId, HISTORY_REMOVED)?.ids.orEmpty() - videoId
+            put(accountId, HISTORY_REMOVED, (listOf(videoId) + kept).take(MAX_HISTORY_REMOVED))
+        }
+
+        suspend fun forgetHistoryRemoved(
+            accountId: String,
+            videoId: String,
+        ) = forget(accountId, videoId, listOf(HISTORY_REMOVED))
+
         fun rejectedCount(accountId: String): Flow<Int> = store.data.map { it[rejectedKey(accountId)] ?: 0 }
 
         suspend fun addRejected(
@@ -171,6 +185,18 @@ class YouTubeRemoteSnapshot
 
             /** The account's list of playlists, own and saved. */
             const val PLAYLISTS = "playlists"
+
+            /** Videos removed from history in Flow. */
+            const val HISTORY_REMOVED = "history_removed"
+
+            /**
+             * Where the pull stops reading YouTube's history after it was cleared in Flow only: the
+             * newest entries YouTube had then. Set from [HISTORY_FLOOR_PENDING] on the next pull.
+             */
+            const val HISTORY_FLOOR = "history_floor"
+            const val HISTORY_FLOOR_PENDING = "history_floor_pending"
+
+            private const val MAX_HISTORY_REMOVED = 500
 
             /** The snapshot name for one owned playlist's videos. */
             fun playlistList(playlistId: String) = "pl_$playlistId"

@@ -1,6 +1,8 @@
 package io.github.aedev.flow.data.youtubeaccount
 
 import android.util.Log
+import io.github.aedev.flow.data.local.LibraryChange
+import io.github.aedev.flow.data.local.LibraryMirror
 import io.github.aedev.flow.data.local.PlaybackProgressListener
 import io.github.aedev.flow.utils.cipher.PipePipeNsigDecoder
 import kotlinx.coroutines.CancellationException
@@ -85,24 +87,48 @@ class YouTubeWatchReporter
                         now - current.lastPingAt < SESSION_GAP_MS
                 if (!sameSession) {
                     if (!mayOpen) return@withActiveAuth
-                    val urls = api.trackingUrls(auth, videoId, PipePipeNsigDecoder.signatureTimestamp()) ?: return@withActiveAuth
-                    val started = Session(videoId, account.id, urls, newCpn(), lastPositionMs = positionMs, lastPingAt = now)
-                    api.ping(auth, urls.playbackUrl, started.params(positionMs, durationMs))
-                    session = started
+                    try {
+                        open(auth, account.id, videoId, positionMs, durationMs, now)
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        // Offline or YouTube busy: the outbox sends the whole record once it can.
+                        if (SendOutcome.of(e) != SendOutcome.RETRY) throw e
+                        LibraryMirror.report(LibraryChange.HistoryWatched(videoId, positionMs, durationMs))
+                    }
                     return@withActiveAuth
                 }
-                val open = current ?: return@withActiveAuth
-                val watchtimeUrl = open.urls.watchtimeUrl ?: return@withActiveAuth
-                if (now - open.lastPingAt < MIN_PING_INTERVAL_MS && positionMs < durationMs) return@withActiveAuth
-                val params =
-                    open.params(positionMs, durationMs) +
-                        mapOf(
-                            "st" to statsSeconds(open.lastPositionMs),
-                            "et" to statsSeconds(positionMs),
-                            "state" to "playing",
-                        )
-                api.ping(auth, watchtimeUrl, params)
-                session = open.copy(lastPositionMs = positionMs, lastPingAt = now)
+                val active = current ?: return@withActiveAuth
+                val watchtimeUrl = active.urls.watchtimeUrl ?: return@withActiveAuth
+                if (now - active.lastPingAt < MIN_PING_INTERVAL_MS && positionMs < durationMs) return@withActiveAuth
+                api.ping(
+                    auth,
+                    watchtimeUrl,
+                    watchParams(active.cpn, positionMs, durationMs) + watchtimeRange(active.lastPositionMs, positionMs),
+                )
+                session = active.copy(lastPositionMs = positionMs, lastPingAt = now)
+            }
+        }
+
+        /**
+         * Opens a watch record. One that starts at the end, as "Mark as watched" does, also reports the
+         * whole video as played, since no later progress will.
+         */
+        private suspend fun open(
+            auth: YouTubeAccountApi.Auth,
+            accountId: String,
+            videoId: String,
+            positionMs: Long,
+            durationMs: Long,
+            now: Long,
+        ) {
+            val urls = api.trackingUrls(auth, videoId, PipePipeNsigDecoder.signatureTimestamp()) ?: return
+            val started = Session(videoId, accountId, urls, newCpn(), lastPositionMs = positionMs, lastPingAt = now)
+            api.ping(auth, urls.playbackUrl, watchParams(started.cpn, positionMs, durationMs))
+            session = started
+            val watchtime = urls.watchtimeUrl
+            if (watchtime != null && positionMs >= durationMs * WATCHED_SHARE) {
+                api.ping(auth, watchtime, watchParams(started.cpn, positionMs, durationMs) + watchtimeRange(0L, positionMs))
             }
         }
 
@@ -113,17 +139,7 @@ class YouTubeWatchReporter
             val cpn: String,
             val lastPositionMs: Long,
             val lastPingAt: Long,
-        ) {
-            fun params(
-                positionMs: Long,
-                durationMs: Long,
-            ) = mapOf(
-                "ver" to "2",
-                "cpn" to cpn,
-                "cmt" to statsSeconds(positionMs),
-                "len" to statsSeconds(durationMs),
-            )
-        }
+        )
 
         private companion object {
             const val TAG = "YouTubeWatchReporter"
@@ -133,6 +149,9 @@ class YouTubeWatchReporter
 
             /** Flow saves every 10 s; YouTube's own clients ping watch time far less often. */
             const val MIN_PING_INTERVAL_MS = 20_000L
+
+            /** Opened this close to the end, a viewing counts as finished. */
+            const val WATCHED_SHARE = 0.95
         }
     }
 

@@ -1112,7 +1112,7 @@
     <string name="content_settings_home_subscriptions_subtitle">Mix videos from channels you follow into Home</string>
     <string name="settings_section_watch_history">Watch history</string>
     <string name="pause_watch_history_title">Pause watch history</string>
-    <string name="pause_watch_history_subtitle">Stop saving what you watch. Deep Flow also pauses learning</string>
+    <string name="pause_watch_history_subtitle">Stop saving what you watch, in Flow and in your signed-in YouTube account. Deep Flow also pauses learning</string>
     <string name="content_settings_show_app_logo_title">Show app logo icon</string>
     <string name="content_settings_show_app_logo_subtitle">Show the Flow logo in the Home top bar</string>
     <string name="content_settings_header_shorts">Shorts</string>
@@ -3488,6 +3488,9 @@
     <string name="playlist_type_yours">Your playlist</string>
     <!-- Shown on one of the viewer's playlists that isn't synced with the signed-in YouTube account. -->
     <string name="playlist_flow_only">Only in Flow</string>
+    <!-- Checkbox in the clear-history dialog, shown while a Google account is signed in. -->
+    <string name="clear_history_also_youtube">Also clear YouTube history</string>
+    <string name="clear_history_also_youtube_summary">Clears the signed-in account\'s watch history on every device. This can\'t be undone.</string>
     <string name="playlist_type_saved">Saved from YouTube</string>
     <plurals name="playlist_videos_removed">
         <item quantity="one">Removed %1$d video</item>

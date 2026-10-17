@@ -69,6 +69,7 @@ fun HistoryScreen(
     val yearFilter by viewModel.yearFilter.collectAsStateWithLifecycle()
 
     var showClearDialog by remember { mutableStateOf(false) }
+    val canClearOnYouTube by viewModel.canClearOnYouTube.collectAsStateWithLifecycle()
     var showClearShortsDialog by remember { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
@@ -204,14 +205,22 @@ fun HistoryScreen(
     }
 
     if (showClearDialog) {
+        // Off every time the dialog opens: clearing YouTube's history can't be undone.
+        var alsoClearOnYouTube by remember { mutableStateOf(false) }
         FlowAlertDialog(
             onDismissRequest = { showClearDialog = false },
             title = { Text(stringResource(R.string.clear_watch_history_alert_title)) },
-            text = { Text(stringResource(R.string.clear_watch_history_alert_body)) },
+            text = {
+                ClearHistoryDialogBody(
+                    canClearOnYouTube = canClearOnYouTube,
+                    alsoOnYouTube = alsoClearOnYouTube,
+                    onAlsoOnYouTubeChange = { alsoClearOnYouTube = it },
+                )
+            },
             confirmButton = {
                 TextButton(
                     onClick = {
-                        viewModel.clearHistory()
+                        viewModel.clearHistory(alsoOnYouTube = canClearOnYouTube && alsoClearOnYouTube)
                         showClearDialog = false
                     },
                 ) {
