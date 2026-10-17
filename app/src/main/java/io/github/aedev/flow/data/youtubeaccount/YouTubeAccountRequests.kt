@@ -43,11 +43,15 @@ enum class PlayerVariant(
         "$YOUTUBE/",
         YouTubeClient.TVHTML5_SIMPLY_EMBEDDED_PLAYER.userAgent,
     ),
+    TV_PO_TOKEN(YouTubeClient.TVHTML5, "$YOUTUBE/tv", TV_USER_AGENT),
+    TIZEN(YouTubeClient.TV_TIZEN, "$YOUTUBE/tv", YouTubeClient.TV_TIZEN.userAgent),
     WEB(YouTubeClient.WEB, "$YOUTUBE/", YouTubeClient.USER_AGENT_WEB),
     TV_SIGNED_OUT(YouTubeClient.TVHTML5, "$YOUTUBE/tv", TV_USER_AGENT, signedIn = false),
     ;
 
     internal val isTv get() = client.clientName == YouTubeClient.TVHTML5.clientName
+
+    internal val sendsVisitor get() = this == TV_VISITOR || this == TV_PO_TOKEN
 }
 
 /** The rating endpoints. [REMOVE] clears a like or a dislike; there is no separate `removedislike` (HTTP 404). */
@@ -133,7 +137,10 @@ internal object YouTubeAccountRequests {
             fields.forEach { (key, value) -> put(key, value) }
         }
 
-    /** A `/player` request as [variant] asks it; [visitorData] is sent only by [PlayerVariant.TV_VISITOR]. */
+    /**
+     * A `/player` request as [variant] asks it. [visitorData] is sent by the variants that use one
+     * ([PlayerVariant.sendsVisitor]); [poToken] only by [PlayerVariant.TV_PO_TOKEN], bound to that visitor.
+     */
     fun playerVariant(
         variant: PlayerVariant,
         hl: String,
@@ -141,6 +148,7 @@ internal object YouTubeAccountRequests {
         videoId: String,
         signatureTimestamp: Int?,
         visitorData: String?,
+        poToken: String? = null,
     ): JsonObject =
         buildJsonObject {
             putJsonObject("context") {
@@ -150,22 +158,25 @@ internal object YouTubeAccountRequests {
                     put("hl", hl)
                     put("gl", gl)
                     if (variant.isTv) {
-                        put("userAgent", TV_USER_AGENT)
+                        put("userAgent", variant.userAgent)
                         putJsonObject("tvAppInfo") {
                             put("appQuality", "TV_APP_QUALITY_FULL_ANIMATION")
                             put("zylonLeftNav", true)
                         }
-                        put("osName", TV_OS_NAME)
-                        put("osVersion", TV_OS_VERSION)
-                        put("deviceMake", TV_DEVICE_MAKE)
-                        put("deviceModel", TV_DEVICE_MODEL)
+                        put("osName", variant.client.osName ?: TV_OS_NAME)
+                        put("osVersion", variant.client.osVersion ?: TV_OS_VERSION)
+                        put("deviceMake", variant.client.deviceMake ?: TV_DEVICE_MAKE)
+                        put("deviceModel", variant.client.deviceModel ?: TV_DEVICE_MODEL)
                     }
-                    if (variant == PlayerVariant.TV_VISITOR && visitorData != null) put("visitorData", visitorData)
+                    if (variant.sendsVisitor && visitorData != null) put("visitorData", visitorData)
                 }
                 if (variant == PlayerVariant.TV_EMBEDDED) putJsonObject("thirdParty") { put("embedUrl", "$YOUTUBE/") }
                 putJsonObject("user") { put("enableSafetyMode", false) }
             }
             player(videoId, signatureTimestamp).forEach { (key, value) -> put(key, value) }
+            if (variant == PlayerVariant.TV_PO_TOKEN && poToken != null) {
+                putJsonObject("serviceIntegrityDimensions") { put("poToken", poToken) }
+            }
         }
 
     fun fields(block: JsonObjectBuilder.() -> Unit): JsonObject = buildJsonObject(block)

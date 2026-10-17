@@ -116,4 +116,19 @@ class YouTubeAccountRequestsTest {
         }
         assertThat(PlayerVariant.entries.last().signedIn).isFalse()
     }
+
+    @Test
+    fun `the PO token variant sends its token and visitor, and Tizen sends its own device`() {
+        val po = YouTubeAccountRequests.playerVariant(PlayerVariant.TV_PO_TOKEN, "en", "US", "vid", 20739, "VISITOR", poToken = "PO")
+        val tv = YouTubeAccountRequests.playerVariant(PlayerVariant.TV, "en", "US", "vid", 20739, "VISITOR", poToken = "PO")
+        val tizen =
+            (YouTubeAccountRequests.playerVariant(PlayerVariant.TIZEN, "en", "US", "vid", 20739, null)["context"] as JsonObject)["client"]
+                as JsonObject
+
+        assertThat(po["serviceIntegrityDimensions"].toString()).isEqualTo("""{"poToken":"PO"}""")
+        assertThat(((po["context"] as JsonObject)["client"] as JsonObject)["visitorData"].toString()).isEqualTo("\"VISITOR\"")
+        assertThat(tv).doesNotContainKey("serviceIntegrityDimensions")
+        assertThat(tizen["osVersion"].toString()).isEqualTo("\"2.4.0\"")
+        assertThat(tizen["clientVersion"].toString()).startsWith("\"5.")
+    }
 }

@@ -4493,6 +4493,7 @@
     <string name="yt_probe_note_nothing_left">Nothing left to delete</string>
     <string name="yt_probe_note_variant">%1$s: %2$s, tracking %3$s</string>
     <string name="yt_probe_note_variant_used">Later checks use %1$s</string>
+    <string name="yt_probe_note_variant_po">PO token %1$s</string>
     <string name="yt_probe_note_variant_inputs">Signature timestamp %1$s · visitor id %2$s</string>
     <string name="yt_probe_note_no_tracking">Player response is missing: %1$s</string>
     <string name="yt_probe_note_create_public">Without privacyStatus: %1$s</string>

@@ -183,6 +183,7 @@ class YouTubeAccountApi
             videoId: String,
             signatureTimestamp: Int?,
             visitorData: String?,
+            poToken: String? = null,
         ): JsonElement =
             withContext(Dispatchers.IO) {
                 val locale = Locale.getDefault()
@@ -194,6 +195,7 @@ class YouTubeAccountApi
                         videoId = videoId,
                         signatureTimestamp = signatureTimestamp,
                         visitorData = visitorData,
+                        poToken = poToken,
                     )
                 val request =
                     Request
@@ -206,7 +208,7 @@ class YouTubeAccountApi
                         .header("Referer", variant.referer)
                         .apply {
                             if (variant.signedIn) authHeaders(auth, variant.userAgent) else header("User-Agent", variant.userAgent)
-                            if (variant == PlayerVariant.TV_VISITOR && visitorData != null) header("X-Goog-Visitor-Id", visitorData)
+                            if (variant.sendsVisitor && visitorData != null) header("X-Goog-Visitor-Id", visitorData)
                         }.build()
                 httpClient.newCall(request).execute().use { response ->
                     response.throwIfFailed("InnerTube player")

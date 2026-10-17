@@ -21,6 +21,7 @@ import io.github.aedev.flow.data.youtubeaccount.probe.SyncProbeSession.Companion
 import io.github.aedev.flow.data.youtubeaccount.probe.SyncProbeSession.Companion.VIDEO
 import io.github.aedev.flow.data.youtubeaccount.statsSeconds
 import io.github.aedev.flow.utils.cipher.PipePipeNsigDecoder
+import io.github.aedev.flow.utils.potoken.WebPoTokenSession
 
 private const val HISTORY_READ_ATTEMPTS = 8
 private const val PRIVACY_PAGE = "SPaccount_privacy"
@@ -50,7 +51,12 @@ private suspend fun SyncProbeSession.player(
     auth: YouTubeAccountApi.Auth,
     videoId: String,
     sts: Int?,
-) = api.playerVariant(auth, playerVariant, videoId, sts, visitorData)
+) = if (playerVariant == PlayerVariant.TV_PO_TOKEN) {
+    val visitor = WebPoTokenSession.sessionVisitorData()
+    api.playerVariant(auth, playerVariant, videoId, sts, visitor, WebPoTokenSession.mintBounded(videoId)?.playerRequestPoToken)
+} else {
+    api.playerVariant(auth, playerVariant, videoId, sts, visitorData)
+}
 
 /**
  * Asks `/player` each [PlayerVariant] way and notes which return the tracking URLs history needs. Passes
@@ -60,11 +66,15 @@ private suspend fun SyncProbeSession.player(
 internal suspend fun SyncProbeSession.probePlayerVariants() {
     running(PLAYER_VARIANTS)
     val sts = PipePipeNsigDecoder.signatureTimestamp()
+    // The PO token is bound to the session's visitor, so that variant sends that visitor, not the stored one.
+    val poVisitor = runCatching { WebPoTokenSession.sessionVisitorData() }.getOrNull()
+    val poToken = poVisitor?.let { runCatching { WebPoTokenSession.mintBounded(VIDEO) }.getOrNull()?.playerRequestPoToken }
     val notes = mutableListOf<SyncProbeNote>()
     var working: PlayerVariant? = null
     var http: Int? = null
     PlayerVariant.entries.forEach { variant ->
-        val response = call { api.playerVariant(it, variant, VIDEO, sts, visitorData) }
+        val visitor = if (variant == PlayerVariant.TV_PO_TOKEN) poVisitor else visitorData
+        val response = call { api.playerVariant(it, variant, VIDEO, sts, visitor, poToken) }
         http = http ?: response.http
         val root = response.value
         val tracked = root?.let(YouTubeAccountParsers::trackingUrls) != null
@@ -78,6 +88,7 @@ internal suspend fun SyncProbeSession.probePlayerVariants() {
         notes += SyncProbeNote(R.string.yt_probe_note_variant_used, it.name)
     }
     notes += SyncProbeNote(R.string.yt_probe_note_variant_inputs, sts?.toString() ?: "none", if (visitorData != null) "sent" else "none")
+    notes += SyncProbeNote(R.string.yt_probe_note_variant_po, if (poToken != null) "minted" else "unavailable")
     report(PLAYER_VARIANTS, if (working != null) SyncProbeStatus.PASS else SyncProbeStatus.FAIL, http, notes)
 }
 
