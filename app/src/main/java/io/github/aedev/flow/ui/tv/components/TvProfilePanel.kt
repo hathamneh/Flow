@@ -1,9 +1,11 @@
 package io.github.aedev.flow.ui.tv.components
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -11,11 +13,16 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AccountCircle
 import androidx.compose.material.icons.outlined.PersonAdd
+import androidx.compose.material.icons.outlined.PersonRemove
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -43,6 +50,15 @@ fun BoxScope.TvProfilePanel(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val signIn by viewModel.signIn.collectAsStateWithLifecycle()
+    var removing by remember { mutableStateOf(false) }
+    var confirming by remember { mutableStateOf<YouTubeAccount?>(null) }
+    LaunchedEffect(visible) {
+        removing = false
+        confirming = null
+    }
+    BackHandler(enabled = visible && (removing || confirming != null)) {
+        if (confirming != null) confirming = null else removing = false
+    }
 
     TvSidePanel(
         visible = visible,
@@ -55,6 +71,22 @@ fun BoxScope.TvProfilePanel(
         val progress = signIn
         if (progress != null) {
             TvSignInPanel(progress, onRetry = viewModel::startSignIn, onClose = viewModel::dismissSignIn)
+            return@TvSidePanel
+        }
+        confirming?.let { account ->
+            RemoveConfirmation(
+                account = account,
+                onRemove = {
+                    confirming = null
+                    removing = false
+                    viewModel.remove(account.id)
+                },
+                onCancel = { confirming = null },
+            )
+            return@TvSidePanel
+        }
+        if (removing) {
+            RemoveList(accounts = state.accounts, onPick = { confirming = it }, onDone = { removing = false })
             return@TvSidePanel
         }
         Column(
@@ -90,11 +122,75 @@ fun BoxScope.TvProfilePanel(
                 leadingIcon = Icons.Outlined.PersonAdd,
                 onClick = viewModel::startSignIn,
             )
+            if (state.accounts.isNotEmpty()) {
+                TvNavRow(
+                    label = stringResource(R.string.profile_remove),
+                    supportingText = stringResource(R.string.profile_remove_summary),
+                    leadingIcon = Icons.Outlined.PersonRemove,
+                    onClick = { removing = true },
+                )
+            }
             Text(
                 text = stringResource(R.string.profile_switch_note),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+        }
+    }
+}
+
+@Composable
+private fun RemoveList(
+    accounts: List<YouTubeAccount>,
+    onPick: (YouTubeAccount) -> Unit,
+    onDone: () -> Unit,
+) {
+    Column(
+        modifier = Modifier.verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Text(
+            text = stringResource(R.string.profile_remove_pick),
+            style = MaterialTheme.typography.titleMedium,
+        )
+        accounts.forEach { account ->
+            TvSelectionRow(
+                label = account.name,
+                supportingText = account.subtitle.takeIf { it.isNotBlank() },
+                selected = false,
+                leading = { TvProfileAvatar(account, size = AvatarSize) },
+                onClick = { onPick(account) },
+            )
+        }
+        TvButton(text = stringResource(R.string.done), onClick = onDone)
+    }
+}
+
+@Composable
+private fun RemoveConfirmation(
+    account: YouTubeAccount,
+    onRemove: () -> Unit,
+    onCancel: () -> Unit,
+) {
+    Column(
+        modifier = Modifier.verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
+        Row(horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.CenterVertically) {
+            TvProfileAvatar(account, size = AvatarSize)
+            Text(
+                text = stringResource(R.string.profile_remove_confirm_title, account.name),
+                style = MaterialTheme.typography.titleLarge,
+            )
+        }
+        Text(
+            text = stringResource(R.string.profile_remove_confirm_body, account.name),
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            TvButton(text = stringResource(R.string.cancel), onClick = onCancel)
+            TvButton(text = stringResource(R.string.youtube_account_remove), icon = Icons.Outlined.PersonRemove, onClick = onRemove)
         }
     }
 }

@@ -6,6 +6,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import io.github.aedev.flow.R
 import io.github.aedev.flow.data.profile.ProfileSwitcher
+import io.github.aedev.flow.data.youtubeaccount.SyncProgress
 import io.github.aedev.flow.data.youtubeaccount.YouTubeAccountManager
 import io.github.aedev.flow.data.youtubeaccount.YouTubeAccountSync
 import io.github.aedev.flow.data.youtubeaccount.YouTubeAccountsState
@@ -42,6 +43,9 @@ class YouTubeAccountViewModel
         /** The sign-in in progress, or null when none is open. */
         val signIn: StateFlow<YouTubeSignInProgress?> = _signIn.asStateFlow()
         private var signInJob: Job? = null
+
+        /** Any sync in progress, including the background one, with the step it is on. */
+        val syncProgress: StateFlow<SyncProgress?> = sync.progress
 
         private val _syncing = MutableStateFlow(false)
         val syncing: StateFlow<Boolean> = _syncing.asStateFlow()

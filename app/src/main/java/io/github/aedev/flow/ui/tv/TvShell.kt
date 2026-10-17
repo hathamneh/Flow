@@ -164,6 +164,12 @@ fun TvShell(
             }
         }
 
+        BackHandler(enabled = profilesOpen) {
+            accountViewModel.dismissSignIn()
+            profilesOpen = false
+            runCatching { railFocusRequester.requestFocus() }
+        }
+        // After the closing handler, so the panel's own Back (leaving remove mode) takes precedence.
         TvProfilePanel(
             visible = profilesOpen,
             viewModel = accountViewModel,
@@ -172,10 +178,5 @@ fun TvShell(
                 runCatching { railFocusRequester.requestFocus() }
             },
         )
-        BackHandler(enabled = profilesOpen) {
-            accountViewModel.dismissSignIn()
-            profilesOpen = false
-            runCatching { railFocusRequester.requestFocus() }
-        }
     }
 }

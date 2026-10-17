@@ -38,6 +38,8 @@ import io.github.aedev.flow.ui.components.shared.FlowSearchField
 import io.github.aedev.flow.ui.screens.settings.index.DestinationIndex
 import io.github.aedev.flow.ui.screens.settings.index.HomeIndex
 import io.github.aedev.flow.ui.screens.settings.index.SettingsSearch
+import io.github.aedev.flow.ui.screens.settings.youtubeaccount.AccountButton
+import io.github.aedev.flow.ui.screens.settings.youtubeaccount.YouTubeAccountViewModel
 
 private val SearchFieldBottomPadding = 8.dp
 
@@ -59,6 +61,8 @@ internal fun SettingsHomeScreen(
     val persona by viewModel.persona.collectAsStateWithLifecycle()
     val updateCheck by viewModel.updateCheck.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
+    val accountViewModel: YouTubeAccountViewModel = hiltViewModel()
+    LaunchedEffect(accountViewModel) { accountViewModel.messages.collect { snackbarHostState.showSnackbar(it) } }
 
     var query by rememberSaveable { mutableStateOf("") }
     var highlight by remember { mutableStateOf<String?>(null) }
@@ -95,6 +99,12 @@ internal fun SettingsHomeScreen(
         onBack = onBack,
         highlight = highlight,
         snackbarHostState = snackbarHostState,
+        actions = {
+            AccountButton(
+                viewModel = accountViewModel,
+                onManage = { onOpen(SettingsTarget(SettingsDestination.YOUTUBE_ACCOUNT)) },
+            )
+        },
         header = {
             FlowSearchField(
                 query = query,

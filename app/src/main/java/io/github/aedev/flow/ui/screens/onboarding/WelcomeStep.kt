@@ -18,11 +18,14 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.ArrowForward
+import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.MusicNote
 import androidx.compose.material.icons.outlined.SlowMotionVideo
 import androidx.compose.material.icons.outlined.SmartDisplay
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialShapes
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -38,6 +41,8 @@ import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import androidx.graphics.shapes.RoundedPolygon
 import io.github.aedev.flow.R
+import io.github.aedev.flow.data.youtubeaccount.YouTubeAccount
+import io.github.aedev.flow.ui.components.account.AccountPicture
 import io.github.aedev.flow.ui.components.shared.FlowLogo
 import io.github.aedev.flow.ui.components.shared.FlowPopIn
 
@@ -47,6 +52,10 @@ private val BrandLogoWidth = 26.dp
 private val StageTopPadding = 24.dp
 private val TextSpacing = 10.dp
 private val BrandSpacing = 8.dp
+private val GoogleCardTopPadding = 8.dp
+private val GoogleCardPadding = 16.dp
+private val GoogleCardSpacing = 14.dp
+private val GoogleAvatarSize = 40.dp
 
 private class Satellite(
     val shape: RoundedPolygon,
@@ -66,6 +75,7 @@ private val Satellites =
 internal fun WelcomeStep(
     hero: HeroSlot,
     contentPadding: PaddingValues,
+    google: GoogleSignInSlot,
 ) {
     BookendLayout(
         contentPadding = contentPadding,
@@ -104,6 +114,64 @@ internal fun WelcomeStep(
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+        GoogleSignInCard(google, Modifier.padding(top = GoogleCardTopPadding))
+    }
+}
+
+/** The signed-in account, if any, and how to start a sign-in. */
+internal class GoogleSignInSlot(
+    val account: YouTubeAccount?,
+    val onSignIn: () -> Unit,
+)
+
+/** Optional Google sign-in on the welcome step: brings the account's YouTube history, subscriptions and library in. */
+@Composable
+private fun GoogleSignInCard(
+    google: GoogleSignInSlot,
+    modifier: Modifier = Modifier,
+) {
+    val account = google.account
+    Surface(
+        onClick = google.onSignIn,
+        enabled = account == null,
+        shape = MaterialTheme.shapes.large,
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        modifier = modifier.fillMaxWidth(),
+    ) {
+        Row(
+            modifier = Modifier.padding(GoogleCardPadding),
+            horizontalArrangement = Arrangement.spacedBy(GoogleCardSpacing),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            AccountPicture(account, GoogleAvatarSize)
+            Column(Modifier.weight(1f)) {
+                Text(
+                    text =
+                        account?.let { stringResource(R.string.onboarding_google_signed_in, it.name) }
+                            ?: stringResource(R.string.onboarding_google_sign_in),
+                    style = MaterialTheme.typography.titleMedium,
+                )
+                Text(
+                    text =
+                        stringResource(
+                            if (account ==
+                                null
+                            ) {
+                                R.string.onboarding_google_summary
+                            } else {
+                                R.string.onboarding_google_importing
+                            },
+                        ),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Icon(
+                imageVector = if (account == null) Icons.AutoMirrored.Outlined.ArrowForward else Icons.Outlined.CheckCircle,
+                contentDescription = null,
+                tint = if (account == null) LocalContentColor.current else MaterialTheme.colorScheme.primary,
+            )
+        }
     }
 }
 

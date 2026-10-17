@@ -35,7 +35,10 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.aedev.flow.data.backup.BackupOperation
 import io.github.aedev.flow.data.backup.ImportKind
+import io.github.aedev.flow.data.youtubeaccount.YouTubeSignInProgress
 import io.github.aedev.flow.ui.components.shared.FlowMaxContentWidth
+import io.github.aedev.flow.ui.screens.settings.youtubeaccount.YouTubeAccountViewModel
+import io.github.aedev.flow.ui.screens.settings.youtubeaccount.YouTubeSignInDialog
 import io.github.aedev.flow.ui.utils.LocalWindowSizeClass
 import io.github.aedev.flow.ui.utils.isExpandedWidth
 import kotlinx.coroutines.launch
@@ -52,6 +55,9 @@ fun OnboardingScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     var interestsRevealed by rememberSaveable { mutableStateOf(false) }
+    val accountViewModel: YouTubeAccountViewModel = hiltViewModel()
+    val accounts by accountViewModel.state.collectAsStateWithLifecycle()
+    val signIn by accountViewModel.signIn.collectAsStateWithLifecycle()
 
     LaunchedEffect(state.completed) { if (state.completed) onComplete() }
     BackHandler(enabled = state.step.index > 0) { viewModel.back() }
@@ -85,6 +91,19 @@ fun OnboardingScreen(
     fun pick(kind: ImportKind) {
         pendingImport = kind
         if (kind.takesSeveralFiles) multiImportPicker.launch(kind.mimeTypes) else importPicker.launch(kind.mimeTypes)
+    }
+
+    signIn?.let { progress ->
+        YouTubeSignInDialog(
+            progress,
+            scope,
+            onRetry = accountViewModel::startSignIn,
+            onDismiss = {
+                accountViewModel.dismissSignIn()
+                // YouTube now brings the history and subscriptions the middle steps would have asked for.
+                if (progress is YouTubeSignInProgress.Done) viewModel.goTo(OnboardingStep.READY)
+            },
+        )
     }
 
     // The step the backdrop and hero last settled on; a new step morphs out of it.
@@ -145,6 +164,7 @@ fun OnboardingScreen(
                                 viewModel.toggleTopic(topic)
                             },
                             onInterestsRevealed = { interestsRevealed = true },
+                            google = GoogleSignInSlot(accounts.active, accountViewModel::startSignIn),
                         ),
                 )
             }

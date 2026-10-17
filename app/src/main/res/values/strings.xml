@@ -4392,6 +4392,19 @@
     <string name="profile_now_watching_as">Watching as %1$s</string>
     <string name="profile_now_watching_as_guest">Watching as Guest</string>
     <string name="profile_syncing">Syncing…</string>
+    <string name="profile_remove">Remove an account</string>
+    <string name="profile_remove_summary">Signs it out and deletes its profile here</string>
+    <string name="profile_remove_pick">Which account should be removed?</string>
+    <string name="profile_remove_confirm_title">Remove %1$s?</string>
+    <string name="profile_remove_confirm_body">%1$s is signed out of Flow on this device, and their profile here is deleted: history, likes, playlists and suggestions. Nothing changes on YouTube itself.</string>
+    <string name="profile_account_button">Google account</string>
+    <string name="profile_add_another">Add another account</string>
+    <string name="profile_manage">Manage accounts</string>
+    <string name="profile_remove_short">Remove</string>
+    <string name="onboarding_google_sign_in">Sign in with Google</string>
+    <string name="onboarding_google_summary">Optional. Brings your YouTube history, subscriptions and playlists into Flow, still ad-free.</string>
+    <string name="onboarding_google_signed_in">Signed in as %1$s</string>
+    <string name="onboarding_google_importing">Your YouTube history and subscriptions are importing.</string>
     <string name="profile_switch_note">Flow restarts to open another profile.</string>
     <string name="youtube_account_remove_summary">Signs this account out and deletes its profile from this device: its history, likes and suggestions here.</string>
 </resources>

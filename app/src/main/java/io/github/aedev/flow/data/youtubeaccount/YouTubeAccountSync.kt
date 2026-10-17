@@ -89,6 +89,9 @@ class YouTubeAccountSync
                             System.currentTimeMillis() - store.lastLibraryPull(active.id) >= LIBRARY_SYNC_INTERVAL_MS
                     }
                     accounts.withActiveAuth { account, auth ->
+                        // Started by hand right after a sign-in, a sync is that profile's import all the same.
+                        if (!firstImport) firstImport = store.lastHistoryPull(account.id) == 0L
+
                         fun step(phase: SyncProgress.Phase) {
                             _progress.value = SyncProgress(account.name, phase, firstImport)
                         }

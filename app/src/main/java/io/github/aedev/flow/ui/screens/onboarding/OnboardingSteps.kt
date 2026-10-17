@@ -42,6 +42,7 @@ internal class StepActions(
     val onPick: (ImportKind) -> Unit,
     val onTopicToggle: (String) -> Unit,
     val onInterestsRevealed: () -> Unit,
+    val google: GoogleSignInSlot,
 )
 
 /**
@@ -82,7 +83,7 @@ internal fun SharedTransitionScope.OnboardingSteps(
         }
         when {
             step == OnboardingStep.WELCOME -> {
-                Readable { WelcomeStep(hero = hero, contentPadding = StepPadding) }
+                Readable { WelcomeStep(hero = hero, contentPadding = StepPadding, google = actions.google) }
             }
 
             step == OnboardingStep.READY -> {
