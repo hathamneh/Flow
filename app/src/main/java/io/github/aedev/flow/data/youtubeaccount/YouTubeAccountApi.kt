@@ -176,6 +176,44 @@ class YouTubeAccountApi
             signatureTimestamp: Int?,
         ): JsonElement = innerTube("player", auth, Requests.player(videoId, signatureTimestamp), device = true)
 
+        /** `/player` asked as [variant], for the diagnostics to compare; the account calls use [player]. */
+        suspend fun playerVariant(
+            auth: Auth,
+            variant: PlayerVariant,
+            videoId: String,
+            signatureTimestamp: Int?,
+            visitorData: String?,
+        ): JsonElement =
+            withContext(Dispatchers.IO) {
+                val locale = Locale.getDefault()
+                val body =
+                    Requests.playerVariant(
+                        variant,
+                        hl = locale.language.ifBlank { "en" },
+                        gl = locale.country.ifBlank { "US" },
+                        videoId = videoId,
+                        signatureTimestamp = signatureTimestamp,
+                        visitorData = visitorData,
+                    )
+                val request =
+                    Request
+                        .Builder()
+                        .url("https://www.$YOUTUBE_HOST${INNERTUBE_PATH}player?prettyPrint=false")
+                        .post(body.toString().toRequestBody(JSON_TYPE))
+                        .header("X-YouTube-Client-Name", variant.client.clientId)
+                        .header("X-YouTube-Client-Version", variant.client.clientVersion)
+                        .header("Origin", "https://www.$YOUTUBE_HOST")
+                        .header("Referer", variant.referer)
+                        .apply {
+                            if (variant.signedIn) authHeaders(auth, variant.userAgent) else header("User-Agent", variant.userAgent)
+                            if (variant == PlayerVariant.TV_VISITOR && visitorData != null) header("X-Goog-Visitor-Id", visitorData)
+                        }.build()
+                httpClient.newCall(request).execute().use { response ->
+                    response.throwIfFailed("InnerTube player")
+                    json.parseToJsonElement(response.body.string())
+                }
+            }
+
         suspend fun browse(
             auth: Auth,
             browseId: String? = null,

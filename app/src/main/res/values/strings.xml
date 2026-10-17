@@ -4454,6 +4454,7 @@
     <string name="yt_probe_check_playlist_remove">Remove from a playlist</string>
     <string name="yt_probe_check_playlist_delete_tv">Delete a playlist (TV body)</string>
     <string name="yt_probe_check_playlist_delete_web">Delete a playlist (WEB body)</string>
+    <string name="yt_probe_check_player_variants">Ask the player in different ways</string>
     <string name="yt_probe_check_watched_ping">Mark watched with a full-length ping</string>
     <string name="yt_probe_check_history_remove">Remove a video from history</string>
     <string name="yt_probe_check_history_pause">Pause watch history</string>
@@ -4490,6 +4491,9 @@
     <string name="yt_probe_note_set_video_ids">setVideoId on %1$s of %2$s videos</string>
     <string name="yt_probe_note_title">Title now: %1$s</string>
     <string name="yt_probe_note_nothing_left">Nothing left to delete</string>
+    <string name="yt_probe_note_variant">%1$s: %2$s, tracking %3$s</string>
+    <string name="yt_probe_note_variant_used">Later checks use %1$s</string>
+    <string name="yt_probe_note_variant_inputs">Signature timestamp %1$s · visitor id %2$s</string>
     <string name="yt_probe_note_no_tracking">Player response is missing: %1$s</string>
     <string name="yt_probe_note_create_public">Without privacyStatus: %1$s</string>
     <string name="yt_probe_note_on_watch_later">No throwaway playlist could be created, so this ran on Watch later</string>

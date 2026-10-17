@@ -25,6 +25,7 @@ enum class SyncProbeCheck(
     PLAYLIST_REMOVE(R.string.yt_probe_check_playlist_remove),
     PLAYLIST_DELETE_TV(R.string.yt_probe_check_playlist_delete_tv),
     PLAYLIST_DELETE_WEB(R.string.yt_probe_check_playlist_delete_web),
+    PLAYER_VARIANTS(R.string.yt_probe_check_player_variants),
     WATCHED_PING(R.string.yt_probe_check_watched_ping),
     HISTORY_REMOVE(R.string.yt_probe_check_history_remove),
     HISTORY_PAUSE(R.string.yt_probe_check_history_pause),

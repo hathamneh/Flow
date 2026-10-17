@@ -2,6 +2,7 @@ package io.github.aedev.flow.data.youtubeaccount.probe
 
 import io.github.aedev.flow.R
 import io.github.aedev.flow.data.youtubeaccount.AccountClient
+import io.github.aedev.flow.data.youtubeaccount.PlayerVariant
 import io.github.aedev.flow.data.youtubeaccount.YouTubeAccountApi
 import io.github.aedev.flow.data.youtubeaccount.YouTubeAccountParsers
 import io.github.aedev.flow.data.youtubeaccount.browsePages
@@ -10,6 +11,7 @@ import io.github.aedev.flow.data.youtubeaccount.objectsWithAnyKey
 import io.github.aedev.flow.data.youtubeaccount.probe.SyncProbeCheck.HISTORY_PAUSE
 import io.github.aedev.flow.data.youtubeaccount.probe.SyncProbeCheck.HISTORY_REMOVE
 import io.github.aedev.flow.data.youtubeaccount.probe.SyncProbeCheck.HISTORY_RESUME
+import io.github.aedev.flow.data.youtubeaccount.probe.SyncProbeCheck.PLAYER_VARIANTS
 import io.github.aedev.flow.data.youtubeaccount.probe.SyncProbeCheck.WATCHED_PING
 import io.github.aedev.flow.data.youtubeaccount.probe.SyncProbeCheck.WEB_REMIX
 import io.github.aedev.flow.data.youtubeaccount.probe.SyncProbeSession.Companion.HISTORY
@@ -43,11 +45,47 @@ private fun pingParams(
     "len" to statsSeconds(lengthMs),
 )
 
+/** `/player` as the variant [probePlayerVariants] picked. */
+private suspend fun SyncProbeSession.player(
+    auth: YouTubeAccountApi.Auth,
+    videoId: String,
+    sts: Int?,
+) = api.playerVariant(auth, playerVariant, videoId, sts, visitorData)
+
+/**
+ * Asks `/player` each [PlayerVariant] way and notes which return the tracking URLs history needs. Passes
+ * when one does; the history checks after it use the first that did, signed-in ones before the
+ * signed-out one.
+ */
+internal suspend fun SyncProbeSession.probePlayerVariants() {
+    running(PLAYER_VARIANTS)
+    val sts = PipePipeNsigDecoder.signatureTimestamp()
+    val notes = mutableListOf<SyncProbeNote>()
+    var working: PlayerVariant? = null
+    var http: Int? = null
+    PlayerVariant.entries.forEach { variant ->
+        val response = call { api.playerVariant(it, variant, VIDEO, sts, visitorData) }
+        http = http ?: response.http
+        val root = response.value
+        val tracked = root?.let(YouTubeAccountParsers::trackingUrls) != null
+        val playability = root?.let(YouTubeAccountParsers::playability) ?: response.error ?: UNKNOWN
+        notes += SyncProbeNote(R.string.yt_probe_note_variant, variant.name, playability, if (tracked) "yes" else "no")
+        if (tracked && working == null) working = variant
+        pace()
+    }
+    working?.let {
+        playerVariant = it
+        notes += SyncProbeNote(R.string.yt_probe_note_variant_used, it.name)
+    }
+    notes += SyncProbeNote(R.string.yt_probe_note_variant_inputs, sts?.toString() ?: "none", if (visitorData != null) "sent" else "none")
+    report(PLAYER_VARIANTS, if (working != null) SyncProbeStatus.PASS else SyncProbeStatus.FAIL, http, notes)
+}
+
 /** The "mark as watched" every client fakes: a watch record opened and closed at the very end. */
 internal suspend fun SyncProbeSession.probeWatchedPing() {
     running(WATCHED_PING)
     val sts = PipePipeNsigDecoder.signatureTimestamp()
-    val urls = call { api.player(it, VIDEO, sts) }
+    val urls = call { player(it, VIDEO, sts) }
     if (!urls.ok) return fail(WATCHED_PING, urls)
     val tracking = urls.value?.let(YouTubeAccountParsers::trackingUrls)
     val watchtimeUrl = tracking?.watchtimeUrl
@@ -113,7 +151,7 @@ internal suspend fun SyncProbeSession.probeHistoryRemove() {
     val videoId =
         HISTORY_VIDEOS.firstOrNull { it !in seen }
             ?: return skip(HISTORY_REMOVE, SyncProbeNote(R.string.yt_probe_note_already, HISTORY))
-    val urls = call { api.player(it, videoId, PipePipeNsigDecoder.signatureTimestamp()) }
+    val urls = call { player(it, videoId, PipePipeNsigDecoder.signatureTimestamp()) }
     if (!urls.ok) return fail(HISTORY_REMOVE, urls)
     val playability = urls.value?.let(YouTubeAccountParsers::playability) ?: UNKNOWN
     val tracking =

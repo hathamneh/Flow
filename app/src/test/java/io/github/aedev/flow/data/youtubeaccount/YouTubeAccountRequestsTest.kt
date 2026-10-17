@@ -97,4 +97,23 @@ class YouTubeAccountRequestsTest {
         assertThat(device["deviceMake"].toString()).isEqualTo("\"Samsung\"")
         assertThat(device).containsKey("deviceModel")
     }
+
+    @Test
+    fun `player variants differ only where the diagnostics mean them to`() {
+        fun body(variant: PlayerVariant) = YouTubeAccountRequests.playerVariant(variant, "en", "US", "vid", 20739, "VISITOR")
+
+        fun client(variant: PlayerVariant) = (body(variant)["context"] as JsonObject)["client"] as JsonObject
+
+        assertThat(client(PlayerVariant.TV_VISITOR)["visitorData"].toString()).isEqualTo("\"VISITOR\"")
+        assertThat(client(PlayerVariant.TV)).doesNotContainKey("visitorData")
+        assertThat(client(PlayerVariant.TV)).containsKey("deviceMake")
+        assertThat(client(PlayerVariant.WEB)).doesNotContainKey("deviceMake")
+        assertThat(body(PlayerVariant.TV_EMBEDDED)["context"] as JsonObject).containsKey("thirdParty")
+        assertThat(body(PlayerVariant.TV)["context"] as JsonObject).doesNotContainKey("thirdParty")
+        PlayerVariant.entries.forEach { variant ->
+            assertThat(body(variant)["playbackContext"].toString()).contains("20739")
+            assertThat(body(variant)["videoId"].toString()).isEqualTo("\"vid\"")
+        }
+        assertThat(PlayerVariant.entries.last().signedIn).isFalse()
+    }
 }

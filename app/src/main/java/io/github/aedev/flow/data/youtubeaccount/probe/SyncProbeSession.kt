@@ -1,6 +1,7 @@
 package io.github.aedev.flow.data.youtubeaccount.probe
 
 import io.github.aedev.flow.R
+import io.github.aedev.flow.data.youtubeaccount.PlayerVariant
 import io.github.aedev.flow.data.youtubeaccount.PlaylistEntry
 import io.github.aedev.flow.data.youtubeaccount.YouTubeAccountApi
 import io.github.aedev.flow.data.youtubeaccount.YouTubeAccountManager
@@ -28,13 +29,18 @@ internal class SyncProbeSession(
     val api: YouTubeAccountApi,
     private val accounts: YouTubeAccountManager,
     private val publish: (SyncProbeResult) -> Unit,
+    val visitorData: String? = null,
 ) {
+    /** The `/player` request the history checks use: the first that returned tracking URLs, else plain TV. */
+    var playerVariant: PlayerVariant = PlayerVariant.TV
+
     suspend fun runAll() {
         probeLikes()
         probeMusicLike()
         probeSubscription()
         probeWatchLater()
         probePlaylists()
+        probePlayerVariants()
         probeWatchedPing()
         probeHistoryRemove()
         probeHistoryPause()

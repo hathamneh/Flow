@@ -4,6 +4,7 @@ import android.util.Log
 import io.github.aedev.flow.R
 import io.github.aedev.flow.data.youtubeaccount.YouTubeAccountApi
 import io.github.aedev.flow.data.youtubeaccount.YouTubeAccountManager
+import io.github.aedev.flow.utils.potoken.VisitorIdentityStore
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -27,6 +28,7 @@ class YouTubeSyncProbe
     constructor(
         private val accounts: YouTubeAccountManager,
         private val api: YouTubeAccountApi,
+        private val visitors: VisitorIdentityStore,
     ) {
         private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
         private val _state = MutableStateFlow(SyncProbeRun())
@@ -43,7 +45,7 @@ class YouTubeSyncProbe
                 }
                 _state.update { it.copy(accountName = account.name) }
                 try {
-                    SyncProbeSession(api, accounts, ::publish).runAll()
+                    SyncProbeSession(api, accounts, ::publish, visitorData = visitors.restore()).runAll()
                 } catch (e: Exception) {
                     Log.w(TAG, "Sync diagnostics stopped early", e)
                     _state.update { it.copy(error = SyncProbeNote(R.string.yt_probe_note_error, e.toString())) }
