@@ -66,6 +66,22 @@ class YouTubeAccountApiTest {
         }
 
     @Test
+    fun `reads the OAuth client inline in the page when newer Cobalt builds get it there`() =
+        runBlocking {
+            val api =
+                api { request ->
+                    if (request.url.encodedPath == "/tv") {
+                        200 to """<script nonce="n">sa={clientId:"333-tv.apps.googleusercontent.com",A:"Inline"},ta={}</script>"""
+                    } else {
+                        404 to ""
+                    }
+                }
+
+            assertThat(api.fetchTvOAuthClient()).isEqualTo(TvOAuthClient("333-tv.apps.googleusercontent.com", "Inline"))
+            assertThat(requests).hasSize(1)
+        }
+
+    @Test
     fun `token polling maps Google's pending and final answers`() =
         runBlocking {
             var answer = """{"error":"authorization_pending"}"""

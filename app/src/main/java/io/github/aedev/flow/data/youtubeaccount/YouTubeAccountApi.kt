@@ -43,10 +43,16 @@ class YouTubeAccountApi
         suspend fun fetchTvOAuthClient(): TvOAuthClient? =
             withContext(Dispatchers.IO) {
                 val page = get(TV_PAGE_URL) ?: return@withContext null
-                val scriptPath = BASE_JS.find(page)?.groupValues?.get(1) ?: return@withContext null
-                val script = get(TV_PAGE_URL.toHttpUrl().resolve(scriptPath).toString()) ?: return@withContext null
-                val match = OAUTH_CLIENT.find(script) ?: return@withContext null
-                TvOAuthClient(clientId = match.groupValues[1], clientSecret = match.groupValues[2])
+                // Newer Cobalt builds get the client inline in the page; others in the base script it loads.
+                OAUTH_CLIENT.find(page)?.let { return@withContext it.toClient() }
+                val pageUrl = TV_PAGE_URL.toHttpUrl()
+                val scripts =
+                    (BASE_JS.findAll(page) + SCRIPT_SRC.findAll(page))
+                        .map { it.groupValues[1] }
+                        .distinct()
+                        .mapNotNull { pageUrl.resolve(it)?.takeIf { url -> url.host.endsWith(YOUTUBE_HOST) } }
+                        .take(MAX_SCRIPTS)
+                scripts.firstNotNullOfOrNull { url -> get(url.toString())?.let(OAUTH_CLIENT::find) }?.toClient()
             }
 
         suspend fun requestDeviceCode(
@@ -287,6 +293,8 @@ class YouTubeAccountApi
                 refreshToken = string("refresh_token"),
             )
 
+        private fun MatchResult.toClient() = TvOAuthClient(clientId = groupValues[1], clientSecret = groupValues[2])
+
         private fun JsonObject.long(key: String): Long? = this[key]?.jsonPrimitive?.longOrNull
 
         /** The bearer token for one request, plus the brand-channel page id when acting as one. */
@@ -315,7 +323,10 @@ class YouTubeAccountApi
             const val DEFAULT_TOKEN_LIFETIME_S = 3600L
             const val HTTP_UNAUTHORIZED = 401
             val JSON_TYPE = "application/json".toMediaType()
+            const val YOUTUBE_HOST = "youtube.com"
+            const val MAX_SCRIPTS = 6
             val BASE_JS = Regex("""id="base-js"\s+src="([^"]+)"""")
+            val SCRIPT_SRC = Regex("""<script[^>]*\ssrc="([^"]+\.js[^"]*)"""")
 
             // The first client in the bundle is the TV app's own; later ones belong to other surfaces.
             val OAUTH_CLIENT = Regex("""clientId:"([-\w]+\.apps\.googleusercontent\.com)",\n?[$\w]+:"(\w+)"""")

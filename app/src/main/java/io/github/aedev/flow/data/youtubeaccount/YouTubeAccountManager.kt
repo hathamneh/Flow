@@ -37,7 +37,9 @@ class YouTubeAccountManager
             flow {
                 emit(YouTubeSignInProgress.Starting)
                 val client =
-                    runCatching { api.fetchTvOAuthClient() }.getOrNull()
+                    runCatching { api.fetchTvOAuthClient() }
+                        .onFailure { Log.w(TAG, "Could not load the TV sign-in client", it) }
+                        .getOrNull()
                         ?: return@flow emit(YouTubeSignInProgress.Failed(YouTubeSignInProgress.Reason.NO_CLIENT))
                 val code =
                     try {
