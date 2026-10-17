@@ -93,3 +93,7 @@ The owner says Books and Podcasts are theirs; the other 10 are saved. Signals th
 - **All 10 saved:** `likeEndpoint`, `icon:BOOKMARK`/`BOOKMARK_BORDER` (the save-to-library toggle), and the auth commands around it.
 
 Rule: owned = `playlistEditEndpoint` present **and** no `likeEndpoint` (`YouTubeAccountParsers.isOwnPlaylist`), since an owner can't save their own playlist. It splits all 12 correctly. Owned-playlist sync is back on.
+
+## Phase 2 live check (2026-10-18)
+
+After Sync now, Books became an editable Flow playlist. A reorder and a rename in Flow were sent (`plorder:` and `plname:` SENT), and the owner confirmed both on YouTube.
