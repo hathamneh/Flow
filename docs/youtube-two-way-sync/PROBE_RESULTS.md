@@ -84,3 +84,12 @@ Open questions from FINDINGS.md §6:
 | PLAYLIST_RENAME_OWN | **Pass** | "Books" → "Books · Flow test" → "Books" (restored). `ACTION_SET_PLAYLIST_NAME` works on own playlists. |
 | PLAYLIST_SAVE / UNSAVE | **Pass** | `like/like` and `like/removelike` with a playlist target add and remove it in FEplaylist_aggregation. |
 | PLAYLIST_ADD / MOVE / REMOVE | Pass | As before, on WL. |
+
+## Run 19 (ownership signals)
+
+The owner says Books and Podcasts are theirs; the other 10 are saved. Signals that only some pages have:
+
+- **Books, Podcasts:** only `icon:LOOP` and a privacy icon (PRIVATE, UNLISTED). No `likeEndpoint`, no bookmark icons.
+- **All 10 saved:** `likeEndpoint`, `icon:BOOKMARK`/`BOOKMARK_BORDER` (the save-to-library toggle), and the auth commands around it.
+
+Rule: owned = `playlistEditEndpoint` present **and** no `likeEndpoint` (`YouTubeAccountParsers.isOwnPlaylist`), since an owner can't save their own playlist. It splits all 12 correctly. Owned-playlist sync is back on.

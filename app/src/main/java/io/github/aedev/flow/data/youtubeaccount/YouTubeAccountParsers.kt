@@ -228,11 +228,12 @@ internal object YouTubeAccountParsers {
             }.toList()
 
     /**
-     * Whether a playlist page offers edits: its entries' menus carry a `playlistEditEndpoint` (remove
-     * from playlist) only when the signed-in account owns the playlist. How the pull tells the account's
-     * own playlists from saved ones.
+     * Whether the signed-in account owns the playlist on this page. Every library playlist's entries
+     * offer a `playlistEditEndpoint`, saved ones included, but only someone else's playlist has the
+     * save-to-library button (`likeEndpoint`): an owner can't save their own.
      */
-    fun isEditable(root: JsonElement): Boolean = root.objectsWithKey("playlistEditEndpoint").any()
+    fun isOwnPlaylist(root: JsonElement): Boolean =
+        root.objectsWithKey("playlistEditEndpoint").any() && root.objectsWithKey("likeEndpoint").none()
 
     /** The id `playlist/create` returns. */
     fun createdPlaylistId(root: JsonElement): String? = root.firstString("playlistId")

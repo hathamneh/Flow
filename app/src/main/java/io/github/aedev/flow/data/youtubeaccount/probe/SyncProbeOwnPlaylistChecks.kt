@@ -69,7 +69,7 @@ private suspend fun SyncProbeSession.firstPage(
     return LibraryPlaylist(
         id,
         title,
-        YouTubeAccountParsers.isEditable(page),
+        YouTubeAccountParsers.isOwnPlaylist(page),
         entries.size,
         entries.count { it.setVideoId != null },
         signals(page),

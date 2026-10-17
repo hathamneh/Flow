@@ -56,9 +56,7 @@ class YouTubePlaylistMerge
                     }
                 walks.forEach { (playlist, walk) ->
                     val done =
-                        if (OWNERSHIP_DETECTED &&
-                            walk.editable
-                        ) {
+                        if (walk.editable) {
                             mergeOwned(auth, accountId, playlist)
                         } else {
                             keepSaved(playlist, walk.videos)
@@ -182,7 +180,7 @@ class YouTubePlaylistMerge
             val editable: Boolean,
         )
 
-        /** A playlist's videos, and whether the first page offers the owner's edit controls. */
+        /** A playlist's videos, and whether its first page shows the account owns it. */
         private suspend fun walk(
             auth: YouTubeAccountApi.Auth,
             playlistId: String,
@@ -192,7 +190,7 @@ class YouTubePlaylistMerge
             var first = true
             val complete =
                 api.browsePages(auth, BROWSE_PREFIX + playlistId, PLAYLIST_PAGES) { page ->
-                    if (first) editable = YouTubeAccountParsers.isEditable(page)
+                    if (first) editable = YouTubeAccountParsers.isOwnPlaylist(page)
                     first = false
                     val before = found.size
                     YouTubeAccountParsers.videos(page).forEach { found.putIfAbsent(it.videoId, it) }
@@ -220,9 +218,5 @@ class YouTubePlaylistMerge
             const val PLAYLIST_PAGES = 10
             const val MAX_PLAYLISTS = 60
             const val PARALLEL = 4
-
-            // Off until the owner's pages can be told apart: every library playlist offers
-            // playlistEditEndpoint on the TV pages, saved ones included (diagnostics run 18).
-            const val OWNERSHIP_DETECTED = false
         }
     }

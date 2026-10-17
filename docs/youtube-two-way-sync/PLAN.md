@@ -186,7 +186,7 @@ All of these passed the probe, including dislikes and likes on music videos, whi
 #### Phase 2 as built
 
 - **Schema 35:** `playlists.remoteId` (nullable) and `playlists.remoteOwned` (default 0), as an AutoMigration. `insertPlaylist` keeps an existing row's link when the incoming copy has none, so device sync and restores don't drop it.
-- **Ownership:** a playlist whose first `VL` page carries a `playlistEditEndpoint` is the account's own. It becomes an editable Flow playlist under the same id (`isUserCreated = 1`, `remoteId = id`, `remoteOwned = 1`). Saved copies from before Phase 2 are converted in place, and YouTube's entries replace theirs once.
+- **Ownership:** a playlist whose first `VL` page carries a `playlistEditEndpoint` and no `likeEndpoint` (save button) is the account's own (run 19). It becomes an editable Flow playlist under the same id (`isUserCreated = 1`, `remoteId = id`, `remoteOwned = 1`). Saved copies from before Phase 2 are converted in place, and YouTube's entries replace theirs once.
 - **Mirroring:** `PlaylistMirroring` reports add, remove, take/restore, reorder and rename on owned rows; save and unsave of `PL…`/`OLAK5uy_…` playlists; and deletes. Pull paths pass `mirror = false`.
 - **Outbox:** new keys `plorder:<id>`, `plname:<id>` and `plsave:<id>`; items keep using `pl:<id>:<video>`. `YouTubePlaylistSender` sends them. The order is read at send time: Flow's order plus YouTube's entries with `setVideoId`. `planMoves` (pure, tested) keeps the longest run that's already in order and uses only `ACTION_MOVE_VIDEO_AFTER`; the top is reached with two moves.
 - **Pull (`YouTubePlaylistMerge`):**
@@ -196,7 +196,7 @@ All of these passed the probe, including dislikes and likes on music videos, whi
   - Saved playlists still replace.
 - **Deletes:** YouTube's delete doesn't work, so a playlist deleted or unsaved in Flow is tombstoned per account and isn't brought back while YouTube still lists it. A playlist missing from a complete read of the list, compared with the `playlists` snapshot, is removed locally.
 - **Badge:** "Only in Flow" in the playlist header on phone and TV, for the viewer's own playlists without a `remoteId` while an account is signed in.
-- **Run 18:** rename, save and unsave pass. Ownership detection via `playlistEditEndpoint` is wrong, because every library playlist has it, so owned playlists are turned off (`OWNERSHIP_DETECTED = false`) and all account playlists stay saved copies. The diagnostics now print each page's endpoint, command and icon kinds, to find what sets owned playlists apart.
+- **Runs 18–19:** rename, save and unsave pass. `playlistEditEndpoint` alone marked every playlist as owned. Adding "and no `likeEndpoint`" splits them correctly, so owned sync is on.
 
 ### Phase 3: history (2–3 pd)
 

@@ -147,16 +147,22 @@ class YouTubeAccountStateParsersTest {
     }
 
     @Test
-    fun `a playlist is editable when its entries offer a playlist edit`() {
-        val own =
+    fun `a playlist is the account's own when it offers edits but no save button`() {
+        val edit =
+            """{"menuServiceItemRenderer":{"serviceEndpoint":{"playlistEditEndpoint":{"playlistId":"PLx",
+               "actions":[{"action":"ACTION_REMOVE_VIDEO","setVideoId":"SET-1"}]}}}}"""
+        val save =
+            """{"toggleButtonRenderer":{"defaultServiceEndpoint":
+               {"likeEndpoint":{"status":"LIKE","target":{"playlistId":"PLx"}}}}}"""
+        val own = parse("""{"contents":[{"tileRenderer":{"contentId":"vidAAAAAAAA","menu":{"menuRenderer":{"items":[$edit]}}}}]}""")
+        val saved =
             parse(
-                """{"contents":[{"tileRenderer":{"contentId":"vidAAAAAAAA","menu":{"menuRenderer":{"items":[
-                  {"menuServiceItemRenderer":{"serviceEndpoint":{"playlistEditEndpoint":{"playlistId":"PLx",
-                    "actions":[{"action":"ACTION_REMOVE_VIDEO","setVideoId":"SET-1"}]}}}}]}}}}]}""",
+                """{"header":$save,"contents":[{"tileRenderer":{"contentId":"vidAAAAAAAA","menu":{"menuRenderer":{"items":[$edit]}}}}]}""",
             )
-        val saved = parse("""{"contents":[{"tileRenderer":{"contentId":"vidAAAAAAAA"}}]}""")
+        val public = parse("""{"header":$save,"contents":[{"tileRenderer":{"contentId":"vidAAAAAAAA"}}]}""")
 
-        assertThat(YouTubeAccountParsers.isEditable(own)).isTrue()
-        assertThat(YouTubeAccountParsers.isEditable(saved)).isFalse()
+        assertThat(YouTubeAccountParsers.isOwnPlaylist(own)).isTrue()
+        assertThat(YouTubeAccountParsers.isOwnPlaylist(saved)).isFalse()
+        assertThat(YouTubeAccountParsers.isOwnPlaylist(public)).isFalse()
     }
 }
