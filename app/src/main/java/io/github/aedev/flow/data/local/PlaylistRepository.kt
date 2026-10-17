@@ -28,6 +28,8 @@ class PlaylistRepository
             AppDatabase.getDatabase(context).videoDao(),
         )
 
+        private val mirroring = PlaylistMirroring(playlistDao)
+
         // Watch Later Logic (using a special hardcoded playlist ID "watch_later")
         companion object {
             const val WATCH_LATER_ID = "watch_later"
@@ -273,6 +275,7 @@ class PlaylistRepository
             name: String,
             description: String,
             thumbnailUrl: String,
+            mirror: Boolean = true,
         ) {
             val entity =
                 PlaylistEntity(
@@ -286,6 +289,7 @@ class PlaylistRepository
                     isUserCreated = false,
                 )
             playlistDao.insertPlaylist(entity)
+            if (mirror) mirroring.saved(id, saved = true)
         }
 
         suspend fun saveExternalMusicPlaylist(
@@ -293,6 +297,7 @@ class PlaylistRepository
             name: String,
             description: String,
             thumbnailUrl: String,
+            mirror: Boolean = true,
         ) {
             val entity =
                 PlaylistEntity(
@@ -306,12 +311,14 @@ class PlaylistRepository
                     isUserCreated = false,
                 )
             playlistDao.insertPlaylist(entity)
+            if (mirror) mirroring.saved(id, saved = true)
         }
 
         suspend fun unsaveExternalPlaylist(playlistId: String) {
             val entity = playlistDao.getPlaylist(playlistId)
             if (entity != null && !entity.isUserCreated) {
                 playlistDao.deletePlaylist(playlistId)
+                mirroring.deleted(entity)
             }
         }
 
@@ -320,9 +327,44 @@ class PlaylistRepository
         suspend fun updatePlaylistName(
             playlistId: String,
             name: String,
+            mirror: Boolean = true,
         ) {
             playlistDao.updatePlaylistName(playlistId, name)
+            if (mirror) mirroring.renamed(playlistId, name)
         }
+
+        /**
+         * A playlist from the signed-in YouTube account, new to Flow: [owned] ones are edited here
+         * and sent back, the rest are kept as saved copies. Not reported back to the account.
+         */
+        suspend fun saveAccountPlaylist(
+            id: String,
+            name: String,
+            thumbnailUrl: String,
+            isMusic: Boolean,
+            owned: Boolean,
+        ) {
+            playlistDao.insertPlaylist(
+                PlaylistEntity(
+                    id = id,
+                    name = name,
+                    description = "",
+                    thumbnailUrl = thumbnailUrl,
+                    isPrivate = owned,
+                    createdAt = System.currentTimeMillis(),
+                    isMusic = isMusic,
+                    isUserCreated = owned,
+                    remoteId = id,
+                    remoteOwned = owned,
+                ),
+            )
+        }
+
+        /** Links an existing row to the account playlist of the same id, keeping its videos. */
+        suspend fun linkAccountPlaylist(
+            id: String,
+            owned: Boolean,
+        ) = playlistDao.setRemoteLink(id, remoteId = id, owned = owned)
 
         suspend fun updatePlaylistMetadata(
             playlistId: String,
@@ -330,11 +372,18 @@ class PlaylistRepository
             description: String,
             isPrivate: Boolean,
         ) {
+            val before = playlistDao.getPlaylist(playlistId)
             playlistDao.updatePlaylistMetadata(playlistId, name, description, isPrivate)
+            if (before?.name != name) mirroring.renamed(playlistId, name)
         }
 
-        suspend fun deletePlaylist(playlistId: String) {
+        suspend fun deletePlaylist(
+            playlistId: String,
+            mirror: Boolean = true,
+        ) {
+            val before = playlistDao.getPlaylist(playlistId)
             playlistDao.deletePlaylist(playlistId)
+            if (mirror) mirroring.deleted(before)
         }
 
         suspend fun addVideoToPlaylist(
@@ -352,6 +401,7 @@ class PlaylistRepository
         suspend fun addVideosToPlaylist(
             targetPlaylistId: String,
             videos: List<Video>,
+            mirror: Boolean = true,
         ) {
             if (videos.isEmpty()) return
             try {
@@ -372,7 +422,7 @@ class PlaylistRepository
                     )
                     added += video.id
                 }
-                if (targetPlaylistId == WATCH_LATER_ID) reportWatchLater(added, saved = true)
+                if (mirror) mirroring.items(targetPlaylistId, added, added = true)
 
                 val newThumb = playlistDao.getFirstVideoThumbnail(targetPlaylistId) ?: videos.first().thumbnailUrl
                 playlistDao.updatePlaylistThumbnail(targetPlaylistId, newThumb)
@@ -385,11 +435,12 @@ class PlaylistRepository
         suspend fun removeVideoFromPlaylist(
             playlistId: String,
             videoId: String,
+            mirror: Boolean = true,
         ) {
             playlistDao.removeVideoFromPlaylist(playlistId, videoId)
             val newThumb = playlistDao.getFirstVideoThumbnail(playlistId) ?: ""
             playlistDao.updatePlaylistThumbnail(playlistId, newThumb)
-            if (playlistId == WATCH_LATER_ID) reportWatchLater(listOf(videoId), saved = false)
+            if (mirror) mirroring.items(playlistId, listOf(videoId), added = false)
         }
 
         /** Removes [videoIds] and returns what [restorePlaylistVideos] needs to put them back. */
@@ -398,20 +449,28 @@ class PlaylistRepository
             videoIds: Collection<String>,
         ): List<PlaylistVideoCrossRef> =
             playlistDao.takePlaylistVideos(playlistId, videoIds.toList()).also { taken ->
-                if (playlistId == WATCH_LATER_ID) reportWatchLater(taken.map { it.videoId }, saved = false)
+                mirroring.items(playlistId, taken.map { it.videoId }, added = false)
             }
 
         suspend fun restorePlaylistVideos(entries: List<PlaylistVideoCrossRef>) {
             if (entries.isEmpty()) return
             playlistDao.restorePlaylistVideos(entries)
-            reportWatchLater(entries.filter { it.playlistId == WATCH_LATER_ID }.map { it.videoId }, saved = true)
+            entries.groupBy { it.playlistId }.forEach { (playlistId, restored) ->
+                if (playlistId == WATCH_LATER_ID) {
+                    mirroring.items(playlistId, restored.map { it.videoId }, added = true)
+                } else {
+                    mirroring.restored(playlistId, restored.map { it.videoId })
+                }
+            }
         }
 
         suspend fun reorderVideosInPlaylist(
             playlistId: String,
             orderedVideoIds: List<String>,
+            mirror: Boolean = true,
         ) {
             playlistDao.reorderPlaylistVideos(playlistId, orderedVideoIds)
+            if (mirror) mirroring.order(playlistId)
         }
 
         suspend fun reorderPlaylists(orderedIds: List<String>) = playlistDao.reorderPlaylists(orderedIds)
@@ -466,6 +525,9 @@ class PlaylistRepository
         }
 
         suspend fun getPlaylistEntity(playlistId: String): PlaylistEntity? = playlistDao.getPlaylist(playlistId)
+
+        /** The playlist's videos in the order Flow shows them. */
+        suspend fun getOrderedVideoIds(playlistId: String): List<String> = playlistDao.getOrderedVideoIds(playlistId)
 
         fun observePlaylistEntity(playlistId: String): Flow<PlaylistEntity?> = playlistDao.observePlaylist(playlistId)
 

@@ -6,6 +6,7 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
+import androidx.datastore.preferences.core.stringSetPreferencesKey
 import dagger.hilt.android.qualifiers.ApplicationContext
 import io.github.aedev.flow.data.local.safePreferencesDataStore
 import kotlinx.coroutines.flow.Flow
@@ -47,29 +48,43 @@ class YouTubeRemoteSnapshot
 
         private fun idsKey(
             accountId: String,
-            collection: RemoteCollection,
-        ) = stringPreferencesKey("ids_${accountId}_${collection.id}")
+            list: String,
+        ) = stringPreferencesKey("ids_${accountId}_$list")
 
         private fun takenAtKey(
             accountId: String,
-            collection: RemoteCollection,
-        ) = longPreferencesKey("taken_${accountId}_${collection.id}")
+            list: String,
+        ) = longPreferencesKey("taken_${accountId}_$list")
 
         private fun rejectedKey(accountId: String) = intPreferencesKey("rejected_$accountId")
+
+        private fun deletedKey(accountId: String) = stringSetPreferencesKey("deleted_playlists_$accountId")
 
         suspend fun get(
             accountId: String,
             collection: RemoteCollection,
-        ): Snapshot? = store.data.first().snapshot(accountId, collection)
+        ): Snapshot? = get(accountId, collection.id)
+
+        /** [list] is a [RemoteCollection.id] or a [playlistList]. */
+        suspend fun get(
+            accountId: String,
+            list: String,
+        ): Snapshot? = store.data.first().snapshot(accountId, list)
 
         suspend fun put(
             accountId: String,
             collection: RemoteCollection,
             ids: List<String>,
+        ) = put(accountId, collection.id, ids)
+
+        suspend fun put(
+            accountId: String,
+            list: String,
+            ids: List<String>,
         ) {
             store.edit {
-                it[idsKey(accountId, collection)] = ids.joinToString(SEPARATOR)
-                it[takenAtKey(accountId, collection)] = System.currentTimeMillis()
+                it[idsKey(accountId, list)] = ids.joinToString(SEPARATOR)
+                it[takenAtKey(accountId, list)] = System.currentTimeMillis()
             }
         }
 
@@ -78,13 +93,55 @@ class YouTubeRemoteSnapshot
             accountId: String,
             id: String,
             vararg collections: RemoteCollection,
+        ) = forget(accountId, id, collections.map { it.id })
+
+        suspend fun forget(
+            accountId: String,
+            id: String,
+            lists: List<String>,
         ) {
             store.edit { preferences ->
-                collections.forEach { collection ->
-                    val snapshot = preferences.snapshot(accountId, collection) ?: return@forEach
-                    if (id in snapshot.ids) preferences[idsKey(accountId, collection)] = (snapshot.ids - id).joinToString(SEPARATOR)
+                lists.forEach { list ->
+                    val snapshot = preferences.snapshot(accountId, list) ?: return@forEach
+                    if (id in snapshot.ids) preferences[idsKey(accountId, list)] = (snapshot.ids - id).joinToString(SEPARATOR)
                 }
             }
+        }
+
+        /** Drops a list's snapshot, as when its playlist is gone. */
+        suspend fun drop(
+            accountId: String,
+            list: String,
+        ) {
+            store.edit {
+                it.remove(idsKey(accountId, list))
+                it.remove(takenAtKey(accountId, list))
+            }
+        }
+
+        /** Account playlists deleted or unsaved in Flow, which the pull doesn't bring back. */
+        suspend fun deletedPlaylists(accountId: String): Set<String> = store.data.first()[deletedKey(accountId)].orEmpty()
+
+        suspend fun setDeletedPlaylists(
+            accountId: String,
+            ids: Set<String>,
+        ) {
+            store.edit { if (ids.isEmpty()) it.remove(deletedKey(accountId)) else it[deletedKey(accountId)] = ids }
+        }
+
+        /** Saved again in Flow: the pull may bring it back. */
+        suspend fun undelete(
+            accountId: String,
+            id: String,
+        ) {
+            store.edit { it[deletedKey(accountId)] = it[deletedKey(accountId)].orEmpty() - id }
+        }
+
+        suspend fun addDeletedPlaylist(
+            accountId: String,
+            id: String,
+        ) {
+            store.edit { it[deletedKey(accountId)] = it[deletedKey(accountId)].orEmpty() + id }
         }
 
         fun rejectedCount(accountId: String): Flow<Int> = store.data.map { it[rejectedKey(accountId)] ?: 0 }
@@ -102,15 +159,21 @@ class YouTubeRemoteSnapshot
 
         private fun Preferences.snapshot(
             accountId: String,
-            collection: RemoteCollection,
+            list: String,
         ): Snapshot? {
-            val ids = this[idsKey(accountId, collection)] ?: return null
-            return Snapshot(ids.split(SEPARATOR).filter(String::isNotEmpty), this[takenAtKey(accountId, collection)] ?: 0L)
+            val ids = this[idsKey(accountId, list)] ?: return null
+            return Snapshot(ids.split(SEPARATOR).filter(String::isNotEmpty), this[takenAtKey(accountId, list)] ?: 0L)
         }
 
-        private companion object {
-            // Video and channel ids never hold a comma.
-            const val SEPARATOR = ","
+        companion object {
+            // Video, channel and playlist ids never hold a comma.
+            private const val SEPARATOR = ","
+
+            /** The account's list of playlists, own and saved. */
+            const val PLAYLISTS = "playlists"
+
+            /** The snapshot name for one owned playlist's videos. */
+            fun playlistList(playlistId: String) = "pl_$playlistId"
         }
     }
 

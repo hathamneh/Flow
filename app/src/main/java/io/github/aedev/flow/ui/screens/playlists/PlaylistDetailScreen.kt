@@ -61,6 +61,7 @@ fun PlaylistDetailScreen(
     onPlayPlaylist: (videos: List<Video>, startIndex: Int, shuffle: Boolean, title: String) -> Unit,
     modifier: Modifier = Modifier,
     viewModel: PlaylistDetailViewModel = hiltViewModel(),
+    accountLink: PlaylistAccountLinkViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val sortedVideos by viewModel.sortedVideos.collectAsStateWithLifecycle()
@@ -129,6 +130,7 @@ fun PlaylistDetailScreen(
     BackHandler(enabled = selectionMode) { exitSelection() }
     BackHandler(enabled = isSearching && !selectionMode) { searchQuery = null }
 
+    val flowOnly by accountLink.flowOnly.collectAsStateWithLifecycle()
     val showCollapsedTitle by remember { derivedStateOf { listState.firstVisibleItemIndex > 0 } }
     val headerState =
         rememberPlaylistHeaderState(
@@ -137,6 +139,7 @@ fun PlaylistDetailScreen(
             downloadBatch,
             isDownloaded =
                 downloadedCollection?.isComplete == true,
+            flowOnly = flowOnly,
         )
     val headerActions =
         PlaylistHeaderActions(

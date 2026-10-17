@@ -22,12 +22,33 @@ interface PlaylistDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertPlaylistRow(playlist: PlaylistEntity)
 
-    /** Re-saving or syncing a playlist keeps the place the viewer dragged it to. */
+    /**
+     * Re-saving or syncing a playlist keeps the place the viewer dragged it to, and its link to the
+     * YouTube account's playlist: device sync and restores don't carry that link.
+     */
     @Transaction
     suspend fun insertPlaylist(playlist: PlaylistEntity) {
-        val keptPosition = if (playlist.position != 0) playlist.position else getPlaylist(playlist.id)?.position ?: 0
-        insertPlaylistRow(playlist.copy(position = keptPosition))
+        val existing = getPlaylist(playlist.id)
+        val keptPosition = if (playlist.position != 0) playlist.position else existing?.position ?: 0
+        val linked =
+            if (playlist.remoteId == null && existing?.remoteId != null) {
+                playlist.copy(remoteId = existing.remoteId, remoteOwned = existing.remoteOwned, isUserCreated = existing.isUserCreated)
+            } else {
+                playlist
+            }
+        insertPlaylistRow(linked.copy(position = keptPosition))
     }
+
+    /** Links a playlist to the account's YouTube playlist [remoteId]; an owned one is edited in Flow and sent back. */
+    @Query("UPDATE playlists SET remoteId = :remoteId, remoteOwned = :owned, isUserCreated = :owned WHERE id = :id")
+    suspend fun setRemoteLink(
+        id: String,
+        remoteId: String?,
+        owned: Boolean,
+    )
+
+    @Query("SELECT videoId FROM playlist_video_cross_ref WHERE playlistId = :playlistId ORDER BY position ASC")
+    suspend fun getOrderedVideoIds(playlistId: String): List<String>
 
     @Query("UPDATE playlists SET position = :position WHERE id = :id")
     suspend fun updatePlaylistPosition(

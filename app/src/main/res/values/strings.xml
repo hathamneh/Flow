@@ -3486,6 +3486,8 @@
     <string name="downloads_no_results">No downloads match %1$s</string>
     <string name="playlist_type_builtin">Built-in playlist</string>
     <string name="playlist_type_yours">Your playlist</string>
+    <!-- Shown on one of the viewer's playlists that isn't synced with the signed-in YouTube account. -->
+    <string name="playlist_flow_only">Only in Flow</string>
     <string name="playlist_type_saved">Saved from YouTube</string>
     <plurals name="playlist_videos_removed">
         <item quantity="one">Removed %1$d video</item>

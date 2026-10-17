@@ -20,6 +20,7 @@ internal fun rememberPlaylistHeaderState(
     videos: List<Video>,
     downloadBatch: DownloadBatch?,
     isDownloaded: Boolean,
+    flowOnly: Boolean = false,
 ): PlaylistHeaderState {
     val isUserCreated = uiState.isLocalPlaylist && !uiState.isSaved
     val totalSeconds = remember(videos) { videos.sumOf { it.duration.coerceAtLeast(0).toLong() } }
@@ -38,6 +39,7 @@ internal fun rememberPlaylistHeaderState(
                 uiState.isSaved -> stringResource(R.string.playlist_type_saved)
                 else -> null
             },
+            stringResource(R.string.playlist_flow_only).takeIf { flowOnly },
         )
     val separator = stringResource(R.string.metadata_separator)
     return PlaylistHeaderState(

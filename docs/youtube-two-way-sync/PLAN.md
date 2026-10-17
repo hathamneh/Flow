@@ -183,6 +183,21 @@ All of these passed the probe, including dislikes and likes on music videos, whi
 - Save and unsave someone else's playlist (`like/like|removelike` with a playlist target): add it to the probe first.
 - Change the pull from replace to merge.
 
+#### Phase 2 as built
+
+- **Schema 35:** `playlists.remoteId` (nullable) and `playlists.remoteOwned` (default 0), as an AutoMigration. `insertPlaylist` keeps an existing row's link when the incoming copy has none, so device sync and restores don't drop it.
+- **Ownership:** a playlist whose first `VL` page carries a `playlistEditEndpoint` is the account's own. It becomes an editable Flow playlist under the same id (`isUserCreated = 1`, `remoteId = id`, `remoteOwned = 1`). Saved copies from before Phase 2 are converted in place, and YouTube's entries replace theirs once.
+- **Mirroring:** `PlaylistMirroring` reports add, remove, take/restore, reorder and rename on owned rows; save and unsave of `PL…`/`OLAK5uy_…` playlists; and deletes. Pull paths pass `mirror = false`.
+- **Outbox:** new keys `plorder:<id>`, `plname:<id>` and `plsave:<id>`; items keep using `pl:<id>:<video>`. `YouTubePlaylistSender` sends them. The order is read at send time: Flow's order plus YouTube's entries with `setVideoId`. `planMoves` (pure, tested) keeps the longest run that's already in order and uses only `ACTION_MOVE_VIDEO_AFTER`; the top is reached with two moves.
+- **Pull (`YouTubePlaylistMerge`):**
+  - An owned playlist is re-read under `outbox.exclusive` and merged three ways against its own snapshot (`pl_<id>`).
+  - With nothing of Flow's queued for it and a complete read, YouTube's order is applied.
+  - YouTube's title wins unless a rename is queued.
+  - Saved playlists still replace.
+- **Deletes:** YouTube's delete doesn't work, so a playlist deleted or unsaved in Flow is tombstoned per account and isn't brought back while YouTube still lists it. A playlist missing from a complete read of the list, compared with the `playlists` snapshot, is removed locally.
+- **Badge:** "Only in Flow" in the playlist header on phone and TV, for the viewer's own playlists without a `remoteId` while an account is signed in.
+- **Waiting on the diagnostics run:** PLAYLIST_OWNERSHIP (is the edit-endpoint test right?), PLAYLIST_RENAME_OWN, and PLAYLIST_SAVE/UNSAVE. If rename or save fails, those mutations are rejected and counted as couldn't sync. They then get turned off.
+
 ### Phase 3: history (2–3 pd)
 
 - **Blocker solved (run 17):** the Cobalt TV client's `/player` is UNPLAYABLE ("The page needs to be reloaded") whatever it sends. The Tizen client (5.x) with the same token returns `playbackTracking`, so `YouTubeAccountApi.player()` now asks as Tizen. That also revives the existing history upload, which had been sending nothing. That stops watched pings and the probe's history-removal check. It may also mean the existing history upload (`YouTubeWatchReporter`) silently does nothing. Find out why from the probe's `playabilityStatus` note, and fix it, before the rest of this phase.

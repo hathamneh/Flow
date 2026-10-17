@@ -45,6 +45,7 @@ class YouTubeOutbox
         private val accounts: YouTubeAccountManager,
         private val api: YouTubeAccountApi,
         private val snapshots: YouTubeRemoteSnapshot,
+        private val playlistSender: YouTubePlaylistSender,
     ) {
         private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
@@ -96,6 +97,11 @@ class YouTubeOutbox
             // Signed out, Flow is local only: nothing waits to be sent on the next sign-in.
             val account = store.current().active ?: return
             val now = System.currentTimeMillis()
+            when (change) {
+                is LibraryChange.PlaylistDeleted -> snapshots.addDeletedPlaylist(account.id, change.remoteId)
+                is LibraryChange.PlaylistSaved -> if (change.saved) snapshots.undelete(account.id, change.playlistId)
+                else -> Unit
+            }
             YouTubeMutation.from(change).forEach { mutation ->
                 if (alreadyOnYouTube(account.id, mutation)) {
                     dao.delete(account.id, mutation.key)
@@ -126,9 +132,15 @@ class YouTubeOutbox
                 }
 
                 is YouTubeMutation.PlaylistItem -> {
-                    mutation.add &&
-                        mutation.playlistId == YouTubeMutation.WATCH_LATER &&
-                        snapshots.get(accountId, RemoteCollection.WATCH_LATER)?.ids?.contains(mutation.videoId) == true
+                    mutation.add && snapshots.get(accountId, snapshotOf(mutation.playlistId))?.ids?.contains(mutation.videoId) == true
+                }
+
+                is YouTubeMutation.PlaylistSave -> {
+                    mutation.saved && snapshots.get(accountId, YouTubeRemoteSnapshot.PLAYLISTS)?.ids?.contains(mutation.playlistId) == true
+                }
+
+                is YouTubeMutation.PlaylistOrder, is YouTubeMutation.PlaylistRename -> {
+                    false
                 }
             }
 
@@ -236,12 +248,12 @@ class YouTubeOutbox
                     api.setSubscribed(auth, mutation.channelId, mutation.on)
                 }
 
-                is YouTubeMutation.PlaylistItem -> {
-                    api.editPlaylist(
-                        auth,
-                        mutation.playlistId,
-                        listOf(if (mutation.add) PlaylistEdit.Add(mutation.videoId) else PlaylistEdit.Remove(mutation.videoId)),
-                    )
+                is YouTubeMutation.PlaylistItem,
+                is YouTubeMutation.PlaylistOrder,
+                is YouTubeMutation.PlaylistRename,
+                is YouTubeMutation.PlaylistSave,
+                -> {
+                    playlistSender.send(auth, mutation)
                 }
             }
         }
@@ -267,12 +279,28 @@ class YouTubeOutbox
                 }
 
                 is YouTubeMutation.PlaylistItem -> {
-                    if (!mutation.add && mutation.playlistId == YouTubeMutation.WATCH_LATER) {
-                        snapshots.forget(accountId, mutation.videoId, RemoteCollection.WATCH_LATER)
-                    }
+                    if (!mutation.add) snapshots.forget(accountId, mutation.videoId, listOf(snapshotOf(mutation.playlistId)))
+                }
+
+                is YouTubeMutation.PlaylistSave -> {
+                    if (!mutation.saved) snapshots.forget(accountId, mutation.playlistId, listOf(YouTubeRemoteSnapshot.PLAYLISTS))
+                }
+
+                is YouTubeMutation.PlaylistOrder, is YouTubeMutation.PlaylistRename -> {
+                    Unit
                 }
             }
         }
+
+        /** The snapshot holding a playlist's videos: Watch later's own, or an owned playlist's. */
+        private fun snapshotOf(playlistId: String) =
+            if (playlistId ==
+                YouTubeMutation.WATCH_LATER
+            ) {
+                RemoteCollection.WATCH_LATER.id
+            } else {
+                YouTubeRemoteSnapshot.playlistList(playlistId)
+            }
 
         /** Whether the worker is done, should run another round now, or should back off. */
         enum class DrainResult { DONE, MORE, RETRY }

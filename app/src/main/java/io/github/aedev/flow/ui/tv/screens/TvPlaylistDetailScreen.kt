@@ -19,6 +19,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.aedev.flow.R
 import io.github.aedev.flow.data.model.Video
+import io.github.aedev.flow.ui.screens.playlists.PlaylistAccountLinkViewModel
 import io.github.aedev.flow.ui.screens.playlists.PlaylistDetailViewModel
 import io.github.aedev.flow.ui.tv.components.TvButton
 import io.github.aedev.flow.ui.tv.components.TvMediaGrid
@@ -39,15 +40,21 @@ fun TvPlaylistDetailScreen(
     onPlayPlaylist: (List<Video>, String) -> Unit,
     modifier: Modifier = Modifier,
     viewModel: PlaylistDetailViewModel = hiltViewModel(),
+    accountLink: PlaylistAccountLinkViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val flowOnly by accountLink.flowOnly.collectAsStateWithLifecycle()
     val videos = state.videos
     val dimens = LocalTvDimens.current
 
     TvScreenScaffold(
         title = state.playlistName.ifBlank { stringResource(R.string.tv_library_playlists) },
         modifier = modifier,
-        subtitle = pluralStringResource(R.plurals.videos_count_template, videos.size, videos.size),
+        subtitle =
+            listOfNotNull(
+                pluralStringResource(R.plurals.videos_count_template, videos.size, videos.size),
+                stringResource(R.string.playlist_flow_only).takeIf { flowOnly },
+            ).joinToString(" ${stringResource(R.string.metadata_separator)} "),
     ) {
         Column(
             modifier = Modifier.fillMaxSize(),

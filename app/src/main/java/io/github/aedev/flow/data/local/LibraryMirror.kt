@@ -16,6 +16,38 @@ sealed interface LibraryChange {
         val videoIds: List<String>,
         val saved: Boolean,
     ) : LibraryChange
+
+    /** Videos added to or removed from a playlist the account owns, named by its YouTube id. */
+    data class PlaylistItems(
+        val remoteId: String,
+        val videoIds: List<String>,
+        val added: Boolean,
+    ) : LibraryChange
+
+    /** An owned playlist's order changed; the outbox reads Flow's order from [localId] when it sends. */
+    data class PlaylistOrder(
+        val remoteId: String,
+        val localId: String,
+    ) : LibraryChange
+
+    data class PlaylistRename(
+        val remoteId: String,
+        val name: String,
+    ) : LibraryChange
+
+    /** Someone else's playlist saved to the library, or removed from it. */
+    data class PlaylistSaved(
+        val playlistId: String,
+        val saved: Boolean,
+    ) : LibraryChange
+
+    /**
+     * An account playlist deleted in Flow. YouTube's delete doesn't work for this client, so the pull
+     * just stops bringing it back.
+     */
+    data class PlaylistDeleted(
+        val remoteId: String,
+    ) : LibraryChange
 }
 
 enum class LibraryRating { LIKED, DISLIKED, NONE }

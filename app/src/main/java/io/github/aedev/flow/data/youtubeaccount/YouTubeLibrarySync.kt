@@ -2,31 +2,25 @@ package io.github.aedev.flow.data.youtubeaccount
 
 import android.util.Log
 import io.github.aedev.flow.data.local.LikedVideoInfo
-import io.github.aedev.flow.data.local.PlaylistRepository
 import io.github.aedev.flow.data.music.model.MusicTrack
 import io.github.aedev.flow.data.recommendation.music.MusicBrainEngine
-import io.github.aedev.flow.utils.PerformanceDispatcher
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
-import kotlinx.coroutines.coroutineScope
 import kotlinx.serialization.json.JsonElement
 import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
  * The account's library: liked videos, liked music (YouTube Music likes), Watch later and playlists.
- * Likes and Watch later follow YouTube both ways ([YouTubeLibraryMerge]); each YouTube playlist is kept
- * as a saved playlist in Flow under its own id and refreshed to match, private ones included, since
- * they are read signed in.
+ * Likes and Watch later follow YouTube both ways ([YouTubeLibraryMerge]), and so do the account's own
+ * playlists ([YouTubePlaylistMerge]); other people's saved playlists are kept as copies that match.
  */
 @Singleton
 class YouTubeLibrarySync
     @Inject
     constructor(
         private val api: YouTubeAccountApi,
-        private val playlists: PlaylistRepository,
         private val musicBrain: MusicBrainEngine,
         private val merge: YouTubeLibraryMerge,
+        private val playlistMerge: YouTubePlaylistMerge,
     ) {
         data class Result(
             val likes: Int,
@@ -39,7 +33,7 @@ class YouTubeLibrarySync
         ): Result {
             val likes = pullLikes(auth, accountId, LIKE_PAGES)
             merge.watchLater(auth, accountId, WATCH_LATER_PAGES)
-            val playlistCount = pullPlaylists(auth)
+            val playlistCount = playlistMerge.pull(auth, accountId)
             return Result(likes = likes, playlists = playlistCount)
         }
 
@@ -85,54 +79,11 @@ class YouTubeLibrarySync
             }
         }
 
-        private suspend fun pullPlaylists(auth: YouTubeAccountApi.Auth): Int {
-            val found = LinkedHashMap<String, RemotePlaylist>()
-            api.browsePages(auth, PLAYLISTS, PLAYLIST_LIST_PAGES) { page ->
-                val before = found.size
-                YouTubeAccountParsers.playlists(page).forEach { found.putIfAbsent(it.playlistId, it) }
-                found.size > before
-            }
-            val wanted =
-                found.values.take(MAX_PLAYLISTS).filterNot { playlists.getPlaylistEntity(it.playlistId)?.isUserCreated == true }
-            // One bounded round at a time: a few playlists browse together instead of all sixty in a row.
-            var saved = 0
-            wanted.chunked(PARALLEL_PLAYLISTS).forEach { round ->
-                val fetched =
-                    coroutineScope {
-                        round
-                            .map { playlist ->
-                                async(PerformanceDispatcher.networkIO) {
-                                    playlist to api.collectVideos(auth, PLAYLIST_BROWSE_PREFIX + playlist.playlistId, PLAYLIST_PAGES).items
-                                }
-                            }.awaitAll()
-                    }
-                fetched.forEach { (playlist, items) ->
-                    if (items.isEmpty()) return@forEach
-                    val isMusic = items.count { it.isMusic } * 2 > items.size
-                    val thumbnail = playlist.thumbnailUrl.ifBlank { items.first().thumbnailUrl }
-                    if (isMusic) {
-                        playlists.saveExternalMusicPlaylist(playlist.playlistId, playlist.title, "", thumbnail)
-                    } else {
-                        playlists.saveExternalVideoPlaylist(playlist.playlistId, playlist.title, "", thumbnail)
-                    }
-                    playlists.syncSavedPlaylistVideos(playlist.playlistId, items.map { it.toVideo() })
-                    saved++
-                }
-            }
-            return saved
-        }
-
         private companion object {
             const val TAG = "YouTubeLibrarySync"
-            const val PLAYLISTS = "FEplaylist_aggregation"
-            const val PLAYLIST_BROWSE_PREFIX = "VL"
             const val LIKE_PAGES = 20
             const val WATCH_LATER_PAGES = 10
             const val RECENT_PAGES = 1
-            const val PLAYLIST_LIST_PAGES = 5
-            const val PLAYLIST_PAGES = 10
-            const val MAX_PLAYLISTS = 60
-            const val PARALLEL_PLAYLISTS = 4
             const val MUSIC_LEARN_LIMIT = 100
         }
     }

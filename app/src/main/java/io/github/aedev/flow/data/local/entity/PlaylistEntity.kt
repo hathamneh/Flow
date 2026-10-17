@@ -21,4 +21,8 @@ data class PlaylistEntity(
     val isUserCreated: Boolean = true,
     val syncId: String? = null,
     @ColumnInfo(defaultValue = "0") val position: Int = 0,
+    /** The YouTube playlist id this row mirrors, when it came from the signed-in account. */
+    val remoteId: String? = null,
+    /** True when [remoteId] is a playlist the account owns, so Flow's edits are sent back to YouTube. */
+    @ColumnInfo(defaultValue = "0") val remoteOwned: Boolean = false,
 )

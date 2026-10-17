@@ -43,10 +43,42 @@ sealed interface YouTubeMutation {
         override val key get() = "$PLAYLIST_PREFIX$playlistId:$videoId"
     }
 
+    /** Make an owned playlist's order match Flow's, read when sent; [localId] is Flow's row. */
+    @Serializable
+    @SerialName("playlist_order")
+    data class PlaylistOrder(
+        val playlistId: String,
+        val localId: String,
+    ) : YouTubeMutation {
+        override val key get() = "$ORDER_PREFIX$playlistId"
+    }
+
+    @Serializable
+    @SerialName("playlist_rename")
+    data class PlaylistRename(
+        val playlistId: String,
+        val name: String,
+    ) : YouTubeMutation {
+        override val key get() = "$RENAME_PREFIX$playlistId"
+    }
+
+    /** Someone else's playlist in the library, or not. */
+    @Serializable
+    @SerialName("playlist_save")
+    data class PlaylistSave(
+        val playlistId: String,
+        val saved: Boolean,
+    ) : YouTubeMutation {
+        override val key get() = "$SAVE_PREFIX$playlistId"
+    }
+
     companion object {
         const val RATE_PREFIX = "rate:"
         const val SUBSCRIBE_PREFIX = "sub:"
         const val PLAYLIST_PREFIX = "pl:"
+        const val ORDER_PREFIX = "plorder:"
+        const val RENAME_PREFIX = "plname:"
+        const val SAVE_PREFIX = "plsave:"
 
         /** YouTube's id for Watch later, in edits and in outbox keys. */
         const val WATCH_LATER = "WL"
@@ -61,8 +93,21 @@ sealed interface YouTubeMutation {
         fun from(change: LibraryChange): List<YouTubeMutation> =
             when (change) {
                 is LibraryChange.Rating -> listOf(Rate(change.videoId, change.rating))
+
                 is LibraryChange.Subscription -> listOf(Subscribe(change.channelId, change.subscribed))
+
                 is LibraryChange.WatchLater -> change.videoIds.distinct().map { PlaylistItem(WATCH_LATER, it, change.saved) }
+
+                is LibraryChange.PlaylistItems -> change.videoIds.distinct().map { PlaylistItem(change.remoteId, it, change.added) }
+
+                is LibraryChange.PlaylistOrder -> listOf(PlaylistOrder(change.remoteId, change.localId))
+
+                is LibraryChange.PlaylistRename -> listOf(PlaylistRename(change.remoteId, change.name))
+
+                is LibraryChange.PlaylistSaved -> listOf(PlaylistSave(change.playlistId, change.saved))
+
+                // Not sent: the outbox keeps it from coming back on the next pull instead.
+                is LibraryChange.PlaylistDeleted -> emptyList()
             }
 
         /** The ids behind the queued keys that start with [prefix], for masking the pull. */
