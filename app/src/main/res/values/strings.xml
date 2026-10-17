@@ -4355,9 +4355,9 @@
     <string name="youtube_account_report_history">Send history to YouTube</string>
     <string name="youtube_account_report_history_summary">Videos you watch here appear in your YouTube history and on your other devices</string>
     <string name="youtube_account_sync_now">Sync now</string>
-    <string name="youtube_account_sync_now_summary">Bring in history and subscriptions from YouTube. Also runs whenever Flow opens.</string>
+    <string name="youtube_account_sync_now_summary">Bring in history, subscriptions, likes, YouTube Music likes, Watch later and playlists. Also runs whenever Flow opens.</string>
     <string name="youtube_account_syncing">Syncing…</string>
-    <string name="youtube_account_sync_done">Added %1$d videos and %2$d channels from YouTube</string>
+    <string name="youtube_account_sync_done">From YouTube: %1$d videos, %2$d channels, %3$d likes, %4$d playlists</string>
     <string name="youtube_account_sync_nothing">Already up to date</string>
     <string name="youtube_account_sync_failed">Could not reach YouTube</string>
     <string name="youtube_account_sign_in_title">Sign in with Google</string>

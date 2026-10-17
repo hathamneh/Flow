@@ -13,13 +13,12 @@ import io.github.aedev.flow.data.recommendation.FlowNeuroEngine
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import kotlinx.serialization.json.JsonElement
 import java.io.IOException
 import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * Brings the active account's YouTube history and subscriptions into Flow, so every device that signs
+ * Brings the active account's YouTube history, subscriptions and library into Flow, so every device that signs
  * in to the same account sees — and the Flow engine learns from — everything watched on any of them.
  * The other half, sending this device's viewing up, is [YouTubeWatchReporter].
  *
@@ -34,6 +33,7 @@ class YouTubeAccountSync
         private val accounts: YouTubeAccountManager,
         private val store: YouTubeAccountStore,
         private val api: YouTubeAccountApi,
+        private val library: YouTubeLibrarySync,
     ) {
         private val lock = Mutex()
         private val viewHistory by lazy { ViewHistory.getInstance(context) }
@@ -42,26 +42,42 @@ class YouTubeAccountSync
         data class Result(
             val videos: Int,
             val channels: Int,
-        )
+            val likes: Int = 0,
+            val playlists: Int = 0,
+        ) {
+            val isEmpty: Boolean
+                get() = videos == 0 && channels == 0 && likes == 0 && playlists == 0
+        }
 
         /** The background sync: skipped when the last one is recent, light (a few pages) otherwise. */
         suspend fun syncIfStale(): Result? {
             val active = store.current().active ?: return null
             if (System.currentTimeMillis() - store.lastHistoryPull(active.id) < MIN_SYNC_INTERVAL_MS) return null
-            return sync(historyPages = BACKGROUND_HISTORY_PAGES)
+            val libraryDue = System.currentTimeMillis() - store.lastLibraryPull(active.id) >= LIBRARY_SYNC_INTERVAL_MS
+            return sync(historyPages = BACKGROUND_HISTORY_PAGES, includeLibrary = libraryDue)
         }
 
-        /** A full pull, from the settings page: more history pages, then subscriptions. Null in guest mode. */
-        suspend fun syncNow(): Result? = sync(historyPages = FULL_HISTORY_PAGES)
+        /** A full pull, from the settings page: more history, subscriptions and the library. Null in guest mode. */
+        suspend fun syncNow(): Result? = sync(historyPages = FULL_HISTORY_PAGES, includeLibrary = true)
 
-        private suspend fun sync(historyPages: Int): Result? =
+        private suspend fun sync(
+            historyPages: Int,
+            includeLibrary: Boolean,
+        ): Result? =
             lock.withLock {
                 try {
                     accounts.withActiveAuth { account, auth ->
                         val videos = pullHistory(auth, historyPages)
                         val channels = pullSubscriptions(auth)
-                        store.setLastHistoryPull(account.id, System.currentTimeMillis())
-                        Result(videos, channels)
+                        val now = System.currentTimeMillis()
+                        store.setLastHistoryPull(account.id, now)
+                        val libraryResult =
+                            if (includeLibrary) {
+                                library.pull(auth).also { store.setLastLibraryPull(account.id, now) }
+                            } else {
+                                YouTubeLibrarySync.Result(likes = 0, playlists = 0)
+                            }
+                        Result(videos, channels, libraryResult.likes, libraryResult.playlists)
                     }
                 } catch (e: CancellationException) {
                     throw e
@@ -77,7 +93,7 @@ class YouTubeAccountSync
         ): Int {
             if (PlayerPreferences(context).isWatchHistorySavingBlocked()) return 0
             val fresh = LinkedHashMap<String, RemoteHistoryItem>()
-            pages(auth, HISTORY_BROWSE_ID, maxPages) { page ->
+            api.browsePages(auth, HISTORY_BROWSE_ID, maxPages) { page ->
                 val items = YouTubeAccountParsers.history(page)
                 val known = viewHistory.knownVideoIds(items.map { it.videoId })
                 items.filterNot { it.videoId in known }.forEach { fresh.putIfAbsent(it.videoId, it) }
@@ -99,6 +115,7 @@ class YouTubeAccountSync
                         thumbnailUrl = item.thumbnailUrl,
                         channelName = item.channelName,
                         channelId = item.channelId,
+                        isMusic = item.isMusic,
                     )
                 }
             viewHistory.bulkSaveHistoryEntries(entries)
@@ -108,7 +125,7 @@ class YouTubeAccountSync
 
         private suspend fun pullSubscriptions(auth: YouTubeAccountApi.Auth): Int {
             val found = LinkedHashMap<String, RemoteChannel>()
-            pages(auth, SUBSCRIPTIONS_BROWSE_ID, SUBSCRIPTION_PAGES) { page ->
+            api.browsePages(auth, CHANNELS_BROWSE_ID, SUBSCRIPTION_PAGES) { page ->
                 val before = found.size
                 YouTubeAccountParsers.channels(page).forEach { found.putIfAbsent(it.channelId, it) }
                 found.size > before
@@ -124,22 +141,6 @@ class YouTubeAccountSync
             runCatching { FlowNeuroEngine.bootstrapFromSubscriptions(context, added.map { it.channelName }) }
                 .onFailure { Log.w(TAG, "Engine could not learn from new subscriptions", it) }
             return added.size
-        }
-
-        /** Walks a browse result page by page while [onPage] says to keep going. */
-        private suspend fun pages(
-            auth: YouTubeAccountApi.Auth,
-            browseId: String,
-            maxPages: Int,
-            onPage: suspend (JsonElement) -> Boolean,
-        ) {
-            var page = api.browse(auth, browseId = browseId)
-            repeat(maxPages) { index ->
-                if (!onPage(page)) return
-                if (index == maxPages - 1) return
-                val next = YouTubeAccountParsers.continuation(page) ?: return
-                page = api.browse(auth, continuation = next)
-            }
         }
 
         /** Feeds newly arrived videos to the Flow engine, as a history import does. */
@@ -166,8 +167,11 @@ class YouTubeAccountSync
         private companion object {
             const val TAG = "YouTubeAccountSync"
             const val HISTORY_BROWSE_ID = "FEhistory"
-            const val SUBSCRIPTIONS_BROWSE_ID = "FEsubscriptions"
+
+            // The TV app's full channel list; FEsubscriptions is the uploads feed, not the channels.
+            const val CHANNELS_BROWSE_ID = "FEchannels"
             const val MIN_SYNC_INTERVAL_MS = 10 * 60_000L
+            const val LIBRARY_SYNC_INTERVAL_MS = 6 * 60 * 60_000L
             const val BACKGROUND_HISTORY_PAGES = 3
             const val FULL_HISTORY_PAGES = 25
             const val SUBSCRIPTION_PAGES = 10

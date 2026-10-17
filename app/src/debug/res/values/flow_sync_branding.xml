@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- This fork's builds sit next to the original Flow: a different name and icon colour tell them apart. -->
+<resources>
+    <string name="app_launcher_name" translatable="false">Flow Sync</string>
+    <color name="ic_launcher_background">#0B57D0</color>
+</resources>

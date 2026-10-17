@@ -54,6 +54,7 @@ import io.github.aedev.flow.data.music.model.MusicTrack
 import io.github.aedev.flow.data.newmusic.InnertubeMusicService
 import io.github.aedev.flow.data.recommendation.music.MusicBrainEngine
 import io.github.aedev.flow.data.scrobble.ScrobbleRules
+import io.github.aedev.flow.data.youtubeaccount.YouTubeWatchReporter
 import io.github.aedev.flow.extensions.setOffloadEnabled
 import io.github.aedev.flow.innertube.YouTube
 import io.github.aedev.flow.innertube.models.WatchEndpoint
@@ -211,6 +212,9 @@ class Media3MusicService : MediaLibraryService() {
 
     @Inject
     lateinit var musicBrain: MusicBrainEngine
+
+    @Inject
+    lateinit var youTubeWatchReporter: YouTubeWatchReporter
 
     @Inject
     lateinit var scrobbler: io.github.aedev.flow.data.scrobble.Scrobbler
@@ -755,6 +759,7 @@ class Media3MusicService : MediaLibraryService() {
         // Engine-scoped, NOT lifecycleScope: the finalize from onDestroy runs after
         // this service's scope is already cancelled, and the session must still land.
         musicBrain.onListenSessionAsync(track, playedMs.toDouble() / durationMs, pinnedGenre, playedMs)
+        youTubeWatchReporter.onListenFinished(track.videoId, playedMs, durationMs)
         if (!alreadyScrobbled) scrobbler.onListened(track, durationMs, playedMs, startedAtMs)
         widgetContentSync.get().run {
             request(io.github.aedev.flow.widget.core.refresh.WidgetContentKey.ON_REPEAT)

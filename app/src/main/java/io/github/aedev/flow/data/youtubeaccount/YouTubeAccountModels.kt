@@ -102,6 +102,15 @@ data class RemoteHistoryItem(
     val durationMs: Long,
     /** 0–100, from the resume bar on the history tile; 0 when YouTube shows none. */
     val percentWatched: Int,
+    /** YouTube marks songs and music videos; liked music and music playlists are made of these. */
+    val isMusic: Boolean = false,
+)
+
+/** One of the account's own or saved playlists, from the TV library page. */
+data class RemotePlaylist(
+    val playlistId: String,
+    val title: String,
+    val thumbnailUrl: String,
 )
 
 /** Progress of an interactive sign-in, in the order it moves through them. */

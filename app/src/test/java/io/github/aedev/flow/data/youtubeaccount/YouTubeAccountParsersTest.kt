@@ -78,6 +78,116 @@ class YouTubeAccountParsersTest {
     }
 
     @Test
+    fun `channels reads the round channel tiles of the TV channel list`() {
+        val root =
+            parse(
+                """
+                {
+                  "contents": {
+                    "tvBrowseRenderer": {
+                      "content": {
+                        "shelfRenderer": {
+                          "content": {
+                            "horizontalListRenderer": {
+                              "items": [
+                                {
+                                  "tileRenderer": {
+                                    "style": "TILE_STYLE_YTLR_ROUND",
+                                    "contentType": "TILE_CONTENT_TYPE_CHANNEL",
+                                    "contentId": "UCKUwNueRpPeZcV-nPglMKCQ",
+                                    "header": {
+                                      "tileHeaderRenderer": {
+                                        "thumbnail": {
+                                          "thumbnails": [
+                                            {
+                                              "url": "//yt3.example/88"
+                                            },
+                                            {
+                                              "url": "//yt3.example/176"
+                                            }
+                                          ]
+                                        }
+                                      }
+                                    },
+                                    "metadata": {
+                                      "tileMetadataRenderer": {
+                                        "title": {
+                                          "simpleText": "A Channel"
+                                        },
+                                        "lines": [
+                                          {
+                                            "lineRenderer": {
+                                              "items": [
+                                                {
+                                                  "lineItemRenderer": {
+                                                    "text": {
+                                                      "simpleText": "1M subscribers"
+                                                    }
+                                                  }
+                                                }
+                                              ]
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    },
+                                    "onSelectCommand": {
+                                      "browseEndpoint": {
+                                        "browseId": "UCKUwNueRpPeZcV-nPglMKCQ"
+                                      }
+                                    }
+                                  }
+                                }
+                              ]
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+                """,
+            )
+
+        assertThat(YouTubeAccountParsers.channels(root))
+            .containsExactly(RemoteChannel("UCKUwNueRpPeZcV-nPglMKCQ", "A Channel", "https://yt3.example/176"))
+    }
+
+    @Test
+    fun `playlists reads library playlist tiles and skips the built-in lists`() {
+        val root =
+            parse(
+                """
+                {"contents":{"tvBrowseRenderer":{"content":{"tvSurfaceContentRenderer":{"content":{"gridRenderer":{"items":[
+                  {"tileRenderer":{"contentType":"TILE_CONTENT_TYPE_PLAYLIST","contentId":"PLZmiPrHYOIsRkZaCb5SVAxu",
+                    "header":{"tileHeaderRenderer":{"thumbnail":{"thumbnails":[{"url":"https://i.ytimg.com/pl_c/x.jpg"}]}}},
+                    "metadata":{"tileMetadataRenderer":{"title":{"simpleText":"Road trip"}}},
+                    "onSelectCommand":{"browseEndpoint":{"browseId":"VLPLZmiPrHYOIsRkZaCb5SVAxu"}}}},
+                  {"tileRenderer":{"contentType":"TILE_CONTENT_TYPE_PLAYLIST","contentId":"WL",
+                    "metadata":{"tileMetadataRenderer":{"title":{"simpleText":"Watch later"}}}}}
+                ]}}}}}}}
+                """,
+            )
+
+        assertThat(YouTubeAccountParsers.playlists(root))
+            .containsExactly(RemotePlaylist("PLZmiPrHYOIsRkZaCb5SVAxu", "Road trip", "https://i.ytimg.com/pl_c/x.jpg"))
+    }
+
+    @Test
+    fun `liked music tiles are marked as music`() {
+        val root =
+            parse(
+                """
+                {"items":[{"tileRenderer":{"contentType":"TILE_CONTENT_TYPE_VIDEO","contentId":"dQw4w9WgXcQ",
+                  "metadata":{"tileMetadataRenderer":{"title":{"runs":[{"text":"A Song"}]}}},
+                  "customData":{"playlistPageTileData":{"musicVideoType":"MUSIC_VIDEO_TYPE_OMV"}}}}]}
+                """,
+            )
+
+        assertThat(YouTubeAccountParsers.videos(root).single().isMusic).isTrue()
+    }
+
+    @Test
     fun `history reads video tiles with title, channel, length and resume bar`() {
         val root =
             parse(

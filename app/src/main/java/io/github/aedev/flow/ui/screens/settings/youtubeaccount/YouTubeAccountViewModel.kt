@@ -88,9 +88,23 @@ class YouTubeAccountViewModel
                     try {
                         val result = sync.syncNow()
                         when {
-                            result == null -> null
-                            result.videos == 0 && result.channels == 0 -> context.getString(R.string.youtube_account_sync_nothing)
-                            else -> context.getString(R.string.youtube_account_sync_done, result.videos, result.channels)
+                            result == null -> {
+                                null
+                            }
+
+                            result.isEmpty -> {
+                                context.getString(R.string.youtube_account_sync_nothing)
+                            }
+
+                            else -> {
+                                context.getString(
+                                    R.string.youtube_account_sync_done,
+                                    result.videos,
+                                    result.channels,
+                                    result.likes,
+                                    result.playlists,
+                                )
+                            }
                         }
                     } catch (e: CancellationException) {
                         throw e

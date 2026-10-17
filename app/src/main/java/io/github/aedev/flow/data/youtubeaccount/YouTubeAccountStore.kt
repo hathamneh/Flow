@@ -48,6 +48,8 @@ class YouTubeAccountStore
 
         private fun lastPullKey(id: String) = longPreferencesKey("history_pulled_$id")
 
+        private fun lastLibraryPullKey(id: String) = longPreferencesKey("library_pulled_$id")
+
         val state: Flow<YouTubeAccountsState> =
             context.youTubeAccountDataStore.data
                 .map { preferences ->
@@ -93,6 +95,7 @@ class YouTubeAccountStore
                 preferences.writeAccounts(preferences.accounts().filterNot { it.id == id })
                 preferences.remove(credentialKey(id))
                 preferences.remove(lastPullKey(id))
+                preferences.remove(lastLibraryPullKey(id))
                 if (preferences[activeKey] == id) preferences.remove(activeKey)
             }
 
@@ -109,6 +112,13 @@ class YouTubeAccountStore
             id: String,
             at: Long,
         ) = edit { it[lastPullKey(id)] = at }
+
+        suspend fun lastLibraryPull(id: String): Long = context.youTubeAccountDataStore.data.first()[lastLibraryPullKey(id)] ?: 0L
+
+        suspend fun setLastLibraryPull(
+            id: String,
+            at: Long,
+        ) = edit { it[lastLibraryPullKey(id)] = at }
 
         /** A random id for this install, sent with sign-in requests the way the TV app sends its own. */
         suspend fun deviceId(): String {

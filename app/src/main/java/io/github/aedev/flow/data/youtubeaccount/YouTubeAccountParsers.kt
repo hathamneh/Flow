@@ -17,6 +17,9 @@ internal object YouTubeAccountParsers {
     private const val CHANNEL_PREFIX = "UC"
     private const val TILE_VIDEO = "TILE_CONTENT_TYPE_VIDEO"
     private const val TILE_SHORTS = "TILE_CONTENT_TYPE_SHORTS"
+    private const val TILE_PLAYLIST = "TILE_CONTENT_TYPE_PLAYLIST"
+    private const val PLAYLIST_BROWSE_PREFIX = "VL"
+    private val BUILT_IN_PLAYLISTS = setOf("LL", "LM", "WL")
     private val VIDEO_ID = Regex("[A-Za-z0-9_-]{11}")
     private val CHANNEL_ID = Regex("UC[A-Za-z0-9_-]{22}")
 
@@ -68,6 +71,33 @@ internal object YouTubeAccountParsers {
         return found.values.toList()
     }
 
+    /**
+     * The library's playlists. Liked videos, liked music and Watch later are left out: they have their
+     * own homes in Flow and are read from their own pages.
+     */
+    fun playlists(root: JsonElement): List<RemotePlaylist> {
+        val found = LinkedHashMap<String, RemotePlaylist>()
+        root.objectsWithKey("tileRenderer").forEach { holder ->
+            val tile = holder.obj("tileRenderer") ?: return@forEach
+            if (tile.string("contentType") != TILE_PLAYLIST) return@forEach
+            val id =
+                tile.string("contentId")
+                    ?: tile
+                        .obj("onSelectCommand")
+                        ?.obj("browseEndpoint")
+                        ?.string("browseId")
+                        ?.removePrefix(PLAYLIST_BROWSE_PREFIX)
+                    ?: return@forEach
+            if (id in BUILT_IN_PLAYLISTS) return@forEach
+            val title = tile.tileTitle() ?: return@forEach
+            found.putIfAbsent(id, RemotePlaylist(id, title, tile.tileThumbnail()))
+        }
+        return found.values.toList()
+    }
+
+    /** Video tiles, in page order: watch history newest first, or a playlist's videos in its order. */
+    fun videos(root: JsonElement): List<RemoteHistoryItem> = history(root)
+
     /** Watch history, newest first, as the TV history page orders it. */
     fun history(root: JsonElement): List<RemoteHistoryItem> {
         val found = LinkedHashMap<String, RemoteHistoryItem>()
@@ -102,6 +132,7 @@ internal object YouTubeAccountParsers {
                             .firstNotNullOfOrNull {
                                 it.obj("thumbnailOverlayResumePlaybackRenderer")?.int("percentDurationWatched")
                             }?.coerceIn(0, 100) ?: 0,
+                    isMusic = tile.objectsWithKey("musicVideoType").any(),
                 ),
             )
         }

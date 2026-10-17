@@ -36,11 +36,28 @@ class YouTubeWatchReporter
             videoId: String,
             positionMs: Long,
             durationMs: Long,
+        ) = enqueue(videoId, positionMs, durationMs, mayOpen = true)
+
+        /**
+         * The end of a music listen: extends the watch record the track's start opened, so YouTube
+         * learns how much was heard. Never opens one, so a start Flow kept out of history stays out.
+         */
+        fun onListenFinished(
+            videoId: String,
+            playedMs: Long,
+            durationMs: Long,
+        ) = enqueue(videoId, playedMs, durationMs, mayOpen = false)
+
+        private fun enqueue(
+            videoId: String,
+            positionMs: Long,
+            durationMs: Long,
+            mayOpen: Boolean,
         ) {
             if (durationMs <= 0L || positionMs < 0L) return
             scope.launch {
                 try {
-                    lock.withLock { report(videoId, positionMs.coerceAtMost(durationMs), durationMs) }
+                    lock.withLock { report(videoId, positionMs.coerceAtMost(durationMs), durationMs, mayOpen) }
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: Exception) {
@@ -54,6 +71,7 @@ class YouTubeWatchReporter
             videoId: String,
             positionMs: Long,
             durationMs: Long,
+            mayOpen: Boolean,
         ) {
             if (!accounts.state.first().reportHistory) return
             accounts.withActiveAuth { account, auth ->
@@ -65,6 +83,7 @@ class YouTubeWatchReporter
                         current.accountId == account.id &&
                         now - current.lastPingAt < SESSION_GAP_MS
                 if (!sameSession) {
+                    if (!mayOpen) return@withActiveAuth
                     val urls = api.trackingUrls(auth, videoId) ?: return@withActiveAuth
                     val started = Session(videoId, account.id, urls, cpn(), lastPositionMs = positionMs, lastPingAt = now)
                     api.ping(auth, urls.playbackUrl, started.params(positionMs, durationMs))
