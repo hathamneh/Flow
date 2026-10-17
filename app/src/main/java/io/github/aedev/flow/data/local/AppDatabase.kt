@@ -18,6 +18,7 @@ import io.github.aedev.flow.data.local.dao.SyncLogDao
 import io.github.aedev.flow.data.local.dao.SyncPeerDao
 import io.github.aedev.flow.data.local.dao.VideoDao
 import io.github.aedev.flow.data.local.dao.WatchHistoryDao
+import io.github.aedev.flow.data.local.dao.YouTubeOutboxDao
 import io.github.aedev.flow.data.local.entity.DownloadCollectionEntity
 import io.github.aedev.flow.data.local.entity.DownloadCollectionItemEntity
 import io.github.aedev.flow.data.local.entity.DownloadEntity
@@ -41,6 +42,7 @@ import io.github.aedev.flow.data.local.entity.SyncLogEntity
 import io.github.aedev.flow.data.local.entity.SyncPeerEntity
 import io.github.aedev.flow.data.local.entity.VideoEntity
 import io.github.aedev.flow.data.local.entity.WatchHistoryEntity
+import io.github.aedev.flow.data.local.entity.YouTubeOutboxEntity
 import io.github.aedev.flow.data.local.migrations.MIGRATIONS
 import io.github.aedev.flow.data.local.migrations.Migration24To25
 
@@ -69,6 +71,7 @@ import io.github.aedev.flow.data.local.migrations.Migration24To25
         NoteEntity::class,
         DownloadCollectionEntity::class,
         DownloadCollectionItemEntity::class,
+        YouTubeOutboxEntity::class,
     ],
     autoMigrations = [
         AutoMigration(from = 24, to = 25, spec = Migration24To25::class),
@@ -80,8 +83,9 @@ import io.github.aedev.flow.data.local.migrations.Migration24To25
         AutoMigration(from = 30, to = 31),
         AutoMigration(from = 31, to = 32),
         AutoMigration(from = 32, to = 33),
+        AutoMigration(from = 33, to = 34),
     ],
-    version = 33,
+    version = 34,
     exportSchema = true,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -112,6 +116,8 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun syncPeerDao(): SyncPeerDao
 
     abstract fun musicGraphDao(): MusicGraphDao
+
+    abstract fun youTubeOutboxDao(): YouTubeOutboxDao
 
     companion object {
         @Volatile

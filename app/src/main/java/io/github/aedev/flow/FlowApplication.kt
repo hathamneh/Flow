@@ -14,6 +14,7 @@ import io.github.aedev.flow.data.local.ViewHistory
 import io.github.aedev.flow.data.profile.ProfileSwitcher
 import io.github.aedev.flow.data.repository.NewPipeDownloader
 import io.github.aedev.flow.data.repository.YouTubeRepository
+import io.github.aedev.flow.data.youtubeaccount.YouTubeOutbox
 import io.github.aedev.flow.data.youtubeaccount.YouTubeWatchReporter
 import io.github.aedev.flow.discord.DiscordPresenceRuntime
 import io.github.aedev.flow.innertube.YouTube
@@ -82,6 +83,9 @@ class FlowApplication :
     @Inject
     lateinit var profileSwitcher: ProfileSwitcher
 
+    @Inject
+    lateinit var youTubeOutbox: YouTubeOutbox
+
     override fun newImageLoader(context: PlatformContext): ImageLoader = imageLoader
 
     companion object {
@@ -107,6 +111,8 @@ class FlowApplication :
 
         // Mirrors watch progress to the active Google account; does nothing in guest mode.
         ViewHistory.progressListener = youTubeWatchReporter
+        // Sends likes, subscriptions and Watch later changes to the active Google account.
+        youTubeOutbox.start()
         CoroutineScope(SupervisorJob() + Dispatchers.IO).launch { profileSwitcher.reconcile() }
 
         val playerPreferences = PlayerPreferences(this)

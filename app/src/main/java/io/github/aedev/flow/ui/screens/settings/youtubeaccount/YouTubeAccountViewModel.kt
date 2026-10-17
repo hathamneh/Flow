@@ -10,6 +10,8 @@ import io.github.aedev.flow.data.youtubeaccount.SyncProgress
 import io.github.aedev.flow.data.youtubeaccount.YouTubeAccountManager
 import io.github.aedev.flow.data.youtubeaccount.YouTubeAccountSync
 import io.github.aedev.flow.data.youtubeaccount.YouTubeAccountsState
+import io.github.aedev.flow.data.youtubeaccount.YouTubeOutbox
+import io.github.aedev.flow.data.youtubeaccount.YouTubeOutboxWorker
 import io.github.aedev.flow.data.youtubeaccount.YouTubeSignInProgress
 import io.github.aedev.flow.ui.screens.settings.SettingsViewModel
 import kotlinx.coroutines.CancellationException
@@ -35,6 +37,7 @@ class YouTubeAccountViewModel
         private val manager: YouTubeAccountManager,
         private val sync: YouTubeAccountSync,
         private val profiles: ProfileSwitcher,
+        private val outbox: YouTubeOutbox,
     ) : SettingsViewModel() {
         val state: StateFlow<YouTubeAccountsState> = manager.state.asState(YouTubeAccountsState())
 
@@ -43,6 +46,9 @@ class YouTubeAccountViewModel
         /** The sign-in in progress, or null when none is open. */
         val signIn: StateFlow<YouTubeSignInProgress?> = _signIn.asStateFlow()
         private var signInJob: Job? = null
+
+        /** Library changes still waiting for YouTube, and those it refused. */
+        val outboxStatus: StateFlow<YouTubeOutbox.Status> = outbox.status().asState(YouTubeOutbox.Status(waiting = 0, rejected = 0))
 
         /** Any sync in progress, including the background one, with the step it is on. */
         val syncProgress: StateFlow<SyncProgress?> = sync.progress
@@ -89,6 +95,11 @@ class YouTubeAccountViewModel
             }
 
         fun setReportHistory(enabled: Boolean) = write { manager.setReportHistory(enabled) }
+
+        fun dismissRejected() = write { outbox.clearRejected() }
+
+        /** Sends the waiting changes now rather than at the next backoff. */
+        fun retryOutbox() = YouTubeOutboxWorker.enqueue(context)
 
         fun syncNow() {
             if (_syncing.value) return

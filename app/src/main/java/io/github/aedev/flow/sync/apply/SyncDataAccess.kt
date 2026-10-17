@@ -80,9 +80,9 @@ class SyncDataAccess
         suspend fun writeLikes(merged: List<CanonicalLike>) {
             for (like in merged) {
                 when (like.state) {
-                    CanonicalLike.STATE_LIKED -> likedVideos.likeVideo(LikesMapper.toLikedInfo(like))
-                    CanonicalLike.STATE_DISLIKED -> likedVideos.dislikeVideo(like.id)
-                    CanonicalLike.STATE_NONE -> likedVideos.removeLikeState(like.id)
+                    CanonicalLike.STATE_LIKED -> likedVideos.likeVideo(LikesMapper.toLikedInfo(like), mirror = false)
+                    CanonicalLike.STATE_DISLIKED -> likedVideos.dislikeVideo(like.id, mirror = false)
+                    CanonicalLike.STATE_NONE -> likedVideos.removeLikeState(like.id, mirror = false)
                 }
             }
         }
@@ -139,7 +139,7 @@ class SyncDataAccess
 
             val subscribedIds = subscriptions.getAllSubscriptionIds()
             for (c in removed) {
-                if (c.channelId in subscribedIds) subscriptions.unsubscribe(c.channelId)
+                if (c.channelId in subscribedIds) subscriptions.unsubscribe(c.channelId, mirror = false)
             }
             // Keep the peer's tombstones even for channels this device never had, so the unsubscribe
             // still reaches a third device that does.

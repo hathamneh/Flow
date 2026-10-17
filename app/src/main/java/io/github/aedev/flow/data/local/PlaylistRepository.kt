@@ -105,7 +105,11 @@ class PlaylistRepository
             return videos.any { it.id == videoId }
         }
 
-        suspend fun addToWatchLater(video: Video) {
+        /** [mirror] is false when the video came from elsewhere, such as the YouTube pull. */
+        suspend fun addToWatchLater(
+            video: Video,
+            mirror: Boolean = true,
+        ) {
             try {
                 android.util.Log.d("PlaylistRepository", "Adding video to Watch Later: ${video.id}")
                 val watchLater = playlistDao.getPlaylist(WATCH_LATER_ID)
@@ -138,14 +142,27 @@ class PlaylistRepository
                     ),
                 )
                 android.util.Log.d("PlaylistRepository", "Successfully added to Watch Later")
+                if (mirror) reportWatchLater(listOf(video.id), saved = true)
             } catch (e: Exception) {
                 android.util.Log.e("PlaylistRepository", "Failed to add to Watch Later", e)
                 throw e
             }
         }
 
-        suspend fun removeFromWatchLater(videoId: String) {
+        suspend fun removeFromWatchLater(
+            videoId: String,
+            mirror: Boolean = true,
+        ) {
             playlistDao.removeVideoFromPlaylist(WATCH_LATER_ID, videoId)
+            if (mirror) reportWatchLater(listOf(videoId), saved = false)
+        }
+
+        /** Watch later is the one playlist YouTube shares with Flow so far; the others follow in a later phase. */
+        private fun reportWatchLater(
+            videoIds: List<String>,
+            saved: Boolean,
+        ) {
+            if (videoIds.isNotEmpty()) LibraryMirror.report(LibraryChange.WatchLater(videoIds, saved))
         }
 
         suspend fun clearWatchLater() {
@@ -339,6 +356,7 @@ class PlaylistRepository
             if (videos.isEmpty()) return
             try {
                 val alreadyInPlaylist = playlistDao.getVideoIdsInPlaylist(targetPlaylistId).toHashSet()
+                val added = mutableListOf<String>()
                 var nextPosition = (playlistDao.getMaxPlaylistPosition(targetPlaylistId) ?: -1L) + 1L
 
                 videoDao.mergeMetadata(videos.map(::normalizedEntity))
@@ -352,7 +370,9 @@ class PlaylistRepository
                             position = nextPosition++,
                         ),
                     )
+                    added += video.id
                 }
+                if (targetPlaylistId == WATCH_LATER_ID) reportWatchLater(added, saved = true)
 
                 val newThumb = playlistDao.getFirstVideoThumbnail(targetPlaylistId) ?: videos.first().thumbnailUrl
                 playlistDao.updatePlaylistThumbnail(targetPlaylistId, newThumb)
@@ -369,16 +389,22 @@ class PlaylistRepository
             playlistDao.removeVideoFromPlaylist(playlistId, videoId)
             val newThumb = playlistDao.getFirstVideoThumbnail(playlistId) ?: ""
             playlistDao.updatePlaylistThumbnail(playlistId, newThumb)
+            if (playlistId == WATCH_LATER_ID) reportWatchLater(listOf(videoId), saved = false)
         }
 
         /** Removes [videoIds] and returns what [restorePlaylistVideos] needs to put them back. */
         suspend fun takeVideosFromPlaylist(
             playlistId: String,
             videoIds: Collection<String>,
-        ): List<PlaylistVideoCrossRef> = playlistDao.takePlaylistVideos(playlistId, videoIds.toList())
+        ): List<PlaylistVideoCrossRef> =
+            playlistDao.takePlaylistVideos(playlistId, videoIds.toList()).also { taken ->
+                if (playlistId == WATCH_LATER_ID) reportWatchLater(taken.map { it.videoId }, saved = false)
+            }
 
         suspend fun restorePlaylistVideos(entries: List<PlaylistVideoCrossRef>) {
-            if (entries.isNotEmpty()) playlistDao.restorePlaylistVideos(entries)
+            if (entries.isEmpty()) return
+            playlistDao.restorePlaylistVideos(entries)
+            reportWatchLater(entries.filter { it.playlistId == WATCH_LATER_ID }.map { it.videoId }, saved = true)
         }
 
         suspend fun reorderVideosInPlaylist(

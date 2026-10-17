@@ -11,6 +11,8 @@ Status: approved by the owner on 2026-10-17. **Both decisions are made:**
 
 **Phase 0 is done.** Its results are in [PROBE_RESULTS.md](PROBE_RESULTS.md), and the phases below were adjusted to match on 2026-10-17.
 
+**Phase 1 is built** (2026-10-17): the outbox, the like/subscribe/Watch later hooks and the three-way pull. See "Phase 1 as built" below.
+
 The research behind this plan, with sources, the capability matrix, rejected options and risks, is in [FINDINGS.md](FINDINGS.md). The current state of the branch and the environment notes are in [CONTEXT.md](CONTEXT.md).
 
 ## Goal
@@ -139,6 +141,38 @@ All of these passed the probe, including dislikes and likes on music videos, whi
 - Hook the like, dislike, subscribe and Watch Later methods.
 - Use the snapshot three-way pull for those three collections.
 - Show the "couldn't sync" status line.
+
+#### Phase 1 as built
+
+- **Audit (FINDINGS §6 question 6).** Not every import path was silent:
+  - These now pass `mirror = false`: `SyncDataAccess.writeLikes` (like, dislike, clear) and its unsubscribe, and the backup restore's `likeVideo`.
+  - The YouTube pull writes through the silent paths only: `importLikes`, `subscribeAll`, and `addToWatchLater`/`removeFromWatchLater` with `mirror = false`.
+  - `YouTubeTakeoutImporter` was already silent (`subscribeAll` and the DAO).
+  - These do mirror, on purpose: `WatchLaterCleanup` (otherwise the pull would put watched videos back), `LikedMediaUseCase` take/restore likes (bulk remove and its Undo), and Watch later takes, restores and adds through the generic playlist methods.
+- **Hook.** `data/local/LibraryMirror` is a plain listener, the same pattern as `ViewHistory.progressListener`. The like and subscription stores are created outside Hilt, so an injected listener couldn't reach them. `YouTubeOutbox.start()` sets it from `FlowApplication`.
+- **Outbox.**
+  - Table `youtube_outbox`: DB 33 → 34, AutoMigration, schema `34.json`. Its key is (accountId, key), so a change waits for the account it was made under.
+  - Changes are queued only while an account is active. A guest's changes stay local.
+  - A like, a subscribe or a Watch later add is dropped when the last pull already shows it. Removals and dislikes are always sent, because YouTube's lists don't show dislikes.
+- **Worker.** `YouTubeOutboxWorker` runs as unique work `flow_youtube_outbox` with APPEND_OR_REPLACE, CONNECTED and a 30 s exponential backoff.
+  - Each round sends up to 50 changes, 300 ms apart, and queues another round when more are left.
+  - Outcomes: 408/429/5xx/IOException retry; other 4xx are rejected; 401 after a refresh, or no token, keeps the change queued. A change older than 7 days is dropped and counted.
+  - A round starts at app start (10 s delay) and whenever an account is signed in.
+- **Snapshots.** `YouTubeRemoteSnapshot` is DataStore `youtube_sync_state`: profile-owned, install-only, not in backups.
+  - It holds an id list per account and list (subs, likes, liked music, WL), plus the rejected count.
+  - After a sent removal, the id is dropped from the snapshot. Additions wait for the next pull to show them, because YouTube decides whether a like lands in Liked videos, Liked music or both.
+- **Pull.** `YouTubeLibraryMerge` handles subs, likes, liked music and WL with `remoteDiff`. The rules:
+  - Queued keys mask both additions and removals.
+  - Subscription removals need a complete walk; `browsePages` now reports whether it reached the last page.
+  - Likes and WL also accept removals within the read window: old index + new ids < read size − 3.
+  - An empty read removes nothing, because a parser break looks the same. So a list emptied on YouTube isn't mirrored.
+  - A channel unsubscribed in Flow at or after the last snapshot isn't re-added.
+  - Each list's walk and merge runs under `YouTubeOutbox.exclusive`, so a send can't land between the read and the merge.
+- **Cadence.**
+  - The light sync (≥ 10 min apart) now also reads the first page of VLLL, VLLM and VLWL: 3 more requests.
+  - The full library walk keeps its 6 h cadence.
+- **Status line.** The phone and TV account pages show "N changes couldn't sync" (tap to dismiss) and "N changes waiting to sync" (tap to try now), only while there's something to show.
+- **Not done in Phase 1:** reordering Watch later. Phase 2 does it with `setVideoId` moves.
 
 ### Phase 2: playlists (3–4 pd)
 

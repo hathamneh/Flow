@@ -62,4 +62,4 @@ Open questions from FINDINGS.md §6:
 | 3 | Untested: blocked by the missing `playbackTracking`. |
 | 4 | Yes: a music-video like lands in VLLM. Artist subscribe is untested, but plain subscribe works. |
 | 5 | Pause/resume are accepted; the state can't be read. |
-| 6 | Still to audit at the start of Phase 1. |
+| 6 | Audited in Phase 1. Device sync and backup restore called the user-facing like/unsubscribe methods; they now pass `mirror = false`. See PLAN.md, "Phase 1 as built". |

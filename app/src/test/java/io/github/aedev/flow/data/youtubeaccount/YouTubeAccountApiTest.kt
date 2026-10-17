@@ -238,4 +238,33 @@ class YouTubeAccountApiTest {
             assertThat(api.historyFeedbackToken(auth, "vidBBBBBBBB")).isEqualTo("TOKEN-B")
             assertThat(requests).hasSize(2)
         }
+
+    private fun pagedApi(pages: Int) =
+        api { request ->
+            val body = Buffer().also { request.body!!.writeTo(it) }.readUtf8()
+            val page =
+                Regex("\"continuation\":\"P(\\d+)\"")
+                    .find(body)
+                    ?.groupValues
+                    ?.get(1)
+                    ?.toInt() ?: 1
+            val next = if (page < pages) ""","continuations":[{"nextContinuationData":{"continuation":"P${page + 1}"}}]""" else ""
+            200 to """{"contents":[{"tileRenderer":{"contentId":"vid${page}AAAAAAA"}}]$next}"""
+        }
+
+    @Test
+    fun `a walk that reaches the last page says it saw the whole list`() =
+        runBlocking {
+            assertThat(pagedApi(pages = 2).browsePages(auth, "VLWL", maxPages = 5) { true }).isTrue()
+            assertThat(requests).hasSize(2)
+        }
+
+    @Test
+    fun `a walk cut short by its page cap or its caller did not see the whole list`() =
+        runBlocking {
+            assertThat(pagedApi(pages = 4).browsePages(auth, "VLWL", maxPages = 2) { true }).isFalse()
+            assertThat(pagedApi(pages = 4).browsePages(auth, "VLWL", maxPages = 5) { false }).isFalse()
+            // A single page with nothing after it is the whole list, even when the caller would stop there.
+            assertThat(pagedApi(pages = 1).browsePages(auth, "VLWL", maxPages = 5) { false }).isTrue()
+        }
 }

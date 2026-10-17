@@ -3,9 +3,7 @@ package io.github.aedev.flow.data.youtubeaccount
 import android.content.Context
 import android.util.Log
 import dagger.hilt.android.qualifiers.ApplicationContext
-import io.github.aedev.flow.data.local.ChannelSubscription
 import io.github.aedev.flow.data.local.PlayerPreferences
-import io.github.aedev.flow.data.local.SubscriptionRepository
 import io.github.aedev.flow.data.local.VideoHistoryEntry
 import io.github.aedev.flow.data.local.ViewHistory
 import io.github.aedev.flow.data.model.Video
@@ -26,8 +24,9 @@ import javax.inject.Singleton
  * in to the same account sees — and the Flow engine learns from — everything watched on any of them.
  * The other half, sending this device's viewing up, is [YouTubeWatchReporter].
  *
- * Only additions travel down: videos and channels Flow does not have yet. Nothing local is deleted or
- * overwritten, and a channel unsubscribed in Flow stays unsubscribed.
+ * History only gains videos Flow doesn't have yet. Subscriptions, likes and Watch later follow YouTube
+ * both ways, without undoing what was changed in Flow ([YouTubeLibraryMerge]); Flow's own changes go up
+ * through the [YouTubeOutbox].
  */
 @Singleton
 class YouTubeAccountSync
@@ -38,6 +37,7 @@ class YouTubeAccountSync
         private val store: YouTubeAccountStore,
         private val api: YouTubeAccountApi,
         private val library: YouTubeLibrarySync,
+        private val merge: YouTubeLibraryMerge,
     ) {
         private val lock = Mutex()
         private val _progress = MutableStateFlow<SyncProgress?>(null)
@@ -45,7 +45,6 @@ class YouTubeAccountSync
         /** The sync in progress, or null when none is running. */
         val progress: StateFlow<SyncProgress?> = _progress.asStateFlow()
         private val viewHistory by lazy { ViewHistory.getInstance(context) }
-        private val subscriptions by lazy { SubscriptionRepository.getInstance(context) }
 
         data class Result(
             val videos: Int,
@@ -97,7 +96,7 @@ class YouTubeAccountSync
                         }
                         // Subscriptions first: a handful of requests that fill the Subscriptions feed right away.
                         step(SyncProgress.Phase.SUBSCRIPTIONS)
-                        val channels = pullSubscriptions(auth)
+                        val channels = pullSubscriptions(auth, account.id)
                         step(SyncProgress.Phase.HISTORY)
                         val videos = pullHistory(auth, pages)
                         val now = System.currentTimeMillis()
@@ -105,9 +104,9 @@ class YouTubeAccountSync
                         val libraryResult =
                             if (withLibrary) {
                                 step(SyncProgress.Phase.LIBRARY)
-                                library.pull(auth).also { store.setLastLibraryPull(account.id, now) }
+                                library.pull(auth, account.id).also { store.setLastLibraryPull(account.id, now) }
                             } else {
-                                YouTubeLibrarySync.Result(likes = 0, playlists = 0)
+                                YouTubeLibrarySync.Result(likes = library.pullRecent(auth, account.id), playlists = 0)
                             }
                         Result(videos, channels, libraryResult.likes, libraryResult.playlists)
                     }
@@ -157,21 +156,12 @@ class YouTubeAccountSync
             return entries.size
         }
 
-        private suspend fun pullSubscriptions(auth: YouTubeAccountApi.Auth): Int {
-            val found = LinkedHashMap<String, RemoteChannel>()
-            api.browsePages(auth, CHANNELS_BROWSE_ID, SUBSCRIPTION_PAGES) { page ->
-                val before = found.size
-                YouTubeAccountParsers.channels(page).forEach { found.putIfAbsent(it.channelId, it) }
-                found.size > before
-            }
-            if (found.isEmpty()) return 0
-            val skip = subscriptions.getAllSubscriptionIds() + subscriptions.unsubscribedTombstones().keys
-            val added =
-                found.values
-                    .filterNot { it.channelId in skip }
-                    .map { ChannelSubscription(channelId = it.channelId, channelName = it.name, channelThumbnail = it.thumbnailUrl) }
+        private suspend fun pullSubscriptions(
+            auth: YouTubeAccountApi.Auth,
+            accountId: String,
+        ): Int {
+            val added = merge.subscriptions(auth, accountId, SUBSCRIPTION_PAGES)
             if (added.isEmpty()) return 0
-            subscriptions.subscribeAll(added)
             runCatching { FlowNeuroEngine.bootstrapFromSubscriptions(context, added.map { it.channelName }) }
                 .onFailure { Log.w(TAG, "Engine could not learn from new subscriptions", it) }
             return added.size
@@ -206,8 +196,6 @@ class YouTubeAccountSync
             const val TAG = "YouTubeAccountSync"
             const val HISTORY_BROWSE_ID = "FEhistory"
 
-            // The TV app's full channel list; FEsubscriptions is the uploads feed, not the channels.
-            const val CHANNELS_BROWSE_ID = "FEchannels"
             const val MIN_SYNC_INTERVAL_MS = 10 * 60_000L
             const val LIBRARY_SYNC_INTERVAL_MS = 6 * 60 * 60_000L
             const val BACKGROUND_HISTORY_PAGES = 3

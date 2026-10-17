@@ -4407,6 +4407,16 @@
     <string name="onboarding_google_importing">Your YouTube history and subscriptions are importing.</string>
     <string name="profile_switch_note">Flow restarts to open another profile.</string>
     <string name="youtube_account_remove_summary">Signs this account out and deletes its profile from this device: its history, likes and suggestions here.</string>
+    <plurals name="youtube_account_outbox_rejected">
+        <item quantity="one">%d change couldn\'t sync to YouTube</item>
+        <item quantity="other">%d changes couldn\'t sync to YouTube</item>
+    </plurals>
+    <string name="youtube_account_outbox_rejected_summary">YouTube turned them down. They\'re still saved in Flow. Tap to dismiss.</string>
+    <plurals name="youtube_account_outbox_waiting">
+        <item quantity="one">%d change waiting to sync</item>
+        <item quantity="other">%d changes waiting to sync</item>
+    </plurals>
+    <string name="youtube_account_outbox_waiting_summary">Likes, subscriptions and Watch later changes go to YouTube once it can be reached. Tap to try now.</string>
 
     <!-- YouTube sync diagnostics (debug and sync builds only) -->
     <string name="yt_probe_title">YouTube sync diagnostics</string>

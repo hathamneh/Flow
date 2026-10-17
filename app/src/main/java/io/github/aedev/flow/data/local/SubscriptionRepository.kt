@@ -46,10 +46,11 @@ class SubscriptionRepository private constructor(
         private const val UNSUBSCRIBE_TOMBSTONE_RETENTION_MS = 365L * 24 * 60 * 60 * 1000
     }
 
-    /**
-     * Subscribe to a channel
-     */
-    suspend fun subscribe(channel: ChannelSubscription) {
+    /** Subscribes to a channel. [mirror] is false for subscriptions that came from elsewhere. */
+    suspend fun subscribe(
+        channel: ChannelSubscription,
+        mirror: Boolean = true,
+    ) {
         context.subscriptionsDataStore.edit { preferences ->
             val safeChannel = channel.withPreservedThumbnail(preferences)
 
@@ -71,6 +72,7 @@ class SubscriptionRepository private constructor(
                 preferences[stringPreferencesKey(SUBSCRIPTIONS_ORDER_KEY)] = orderList.joinToString(",")
             }
         }
+        if (mirror) LibraryMirror.report(LibraryChange.Subscription(channel.channelId, subscribed = true))
     }
 
     suspend fun subscribeAll(channels: Collection<ChannelSubscription>) {
@@ -101,10 +103,11 @@ class SubscriptionRepository private constructor(
         }
     }
 
-    /**
-     * Unsubscribe from a channel
-     */
-    suspend fun unsubscribe(channelId: String) {
+    /** Unsubscribes from a channel. [mirror] is false for unsubscribes that came from elsewhere. */
+    suspend fun unsubscribe(
+        channelId: String,
+        mirror: Boolean = true,
+    ) {
         val now = System.currentTimeMillis()
         context.subscriptionsDataStore.edit { preferences ->
             preferences.remove(channelKey(channelId))
@@ -127,6 +130,7 @@ class SubscriptionRepository private constructor(
             .cacheDao()
             .deleteSubscriptionFeedForChannel(channelId)
         FeedInvalidationBus.emit(FeedInvalidationBus.Event.ChannelUnsubscribed(channelId))
+        if (mirror) LibraryMirror.report(LibraryChange.Subscription(channelId, subscribed = false))
     }
 
     /**

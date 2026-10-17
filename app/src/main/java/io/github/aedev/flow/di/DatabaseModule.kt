@@ -55,6 +55,9 @@ object DatabaseModule {
         database.subscriptionGroupDao()
 
     @Provides
+    fun provideYouTubeOutboxDao(database: AppDatabase): io.github.aedev.flow.data.local.dao.YouTubeOutboxDao = database.youTubeOutboxDao()
+
+    @Provides
     fun provideWatchHistoryDao(database: AppDatabase): io.github.aedev.flow.data.local.dao.WatchHistoryDao = database.watchHistoryDao()
 
     @Provides

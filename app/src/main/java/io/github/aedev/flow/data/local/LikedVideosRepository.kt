@@ -39,10 +39,11 @@ class LikedVideosRepository private constructor(
         private const val LIKED_VIDEOS_ORDER_KEY = "liked_videos_order"
     }
 
-    /**
-     * Like a video
-     */
-    suspend fun likeVideo(videoInfo: LikedVideoInfo) {
+    /** Likes a video. [mirror] is false for likes that came from elsewhere (device sync, a restore). */
+    suspend fun likeVideo(
+        videoInfo: LikedVideoInfo,
+        mirror: Boolean = true,
+    ) {
         dataStore.edit { preferences ->
             // A like re-applied by sync or a restore carries less than an enriched record already holds.
             val stored = preferences[videoKey(videoInfo.videoId)]?.let(::deserializeVideo)
@@ -63,12 +64,14 @@ class LikedVideosRepository private constructor(
                 preferences[stringPreferencesKey(LIKED_VIDEOS_ORDER_KEY)] = orderList.joinToString(",")
             }
         }
+        if (mirror) LibraryMirror.report(LibraryChange.Rating(videoInfo.videoId, LibraryRating.LIKED))
     }
 
-    /**
-     * Dislike a video (removes like if exists)
-     */
-    suspend fun dislikeVideo(videoId: String) {
+    /** Dislikes a video, dropping its like if it had one. */
+    suspend fun dislikeVideo(
+        videoId: String,
+        mirror: Boolean = true,
+    ) {
         dataStore.edit { preferences ->
             preferences[likeStateKey(videoId)] = "DISLIKED"
 
@@ -80,6 +83,7 @@ class LikedVideosRepository private constructor(
                 preferences[stringPreferencesKey(LIKED_VIDEOS_ORDER_KEY)] = orderList.joinToString(",")
             }
         }
+        if (mirror) LibraryMirror.report(LibraryChange.Rating(videoId, LibraryRating.DISLIKED))
     }
 
     /** Every video the viewer has disliked. */
@@ -99,10 +103,11 @@ class LikedVideosRepository private constructor(
             preferences[likeStateKey(videoId)]
         }
 
-    /**
-     * Remove like/dislike from a video
-     */
-    suspend fun removeLikeState(videoId: String) {
+    /** Clears a video's like or dislike. */
+    suspend fun removeLikeState(
+        videoId: String,
+        mirror: Boolean = true,
+    ) {
         dataStore.edit { preferences ->
             preferences.remove(likeStateKey(videoId))
 
@@ -114,7 +119,11 @@ class LikedVideosRepository private constructor(
                 preferences[stringPreferencesKey(LIKED_VIDEOS_ORDER_KEY)] = orderList.joinToString(",")
             }
         }
+        if (mirror) LibraryMirror.report(LibraryChange.Rating(videoId, LibraryRating.NONE))
     }
+
+    /** The video's like state right now: LIKED, DISLIKED, or null. */
+    suspend fun likeState(videoId: String): String? = dataStore.data.first()[likeStateKey(videoId)]
 
     /** Replaces the stored details of a video that is still liked; its place and like date stay. */
     suspend fun updateDetails(videoInfo: LikedVideoInfo) {
@@ -135,6 +144,7 @@ class LikedVideosRepository private constructor(
             taken.forEach { preferences.remove(likeStateKey(it.videoId)) }
             preferences[stringPreferencesKey(LIKED_VIDEOS_ORDER_KEY)] = order.filterNot { it in ids }.joinToString(",")
         }
+        taken.forEach { LibraryMirror.report(LibraryChange.Rating(it.videoId, LibraryRating.NONE)) }
         return taken
     }
 
@@ -142,6 +152,7 @@ class LikedVideosRepository private constructor(
     suspend fun restoreLikes(likes: List<LikedVideoInfo>) {
         if (likes.isEmpty()) return
         dataStore.edit { preferences -> preferences.insertLikes(likes) }
+        likes.forEach { LibraryMirror.report(LibraryChange.Rating(it.videoId, LibraryRating.LIKED)) }
     }
 
     /**

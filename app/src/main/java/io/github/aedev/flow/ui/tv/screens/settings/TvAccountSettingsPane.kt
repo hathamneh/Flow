@@ -9,9 +9,11 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.BugReport
+import androidx.compose.material.icons.outlined.CloudUpload
 import androidx.compose.material.icons.outlined.PersonAdd
 import androidx.compose.material.icons.outlined.PersonRemove
 import androidx.compose.material.icons.outlined.Sync
+import androidx.compose.material.icons.outlined.SyncProblem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -22,6 +24,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -50,6 +53,7 @@ fun TvAccountSettingsPane(
     val state by viewModel.state.collectAsStateWithLifecycle()
     val signIn by viewModel.signIn.collectAsStateWithLifecycle()
     val syncing by viewModel.syncing.collectAsStateWithLifecycle()
+    val outbox by viewModel.outboxStatus.collectAsStateWithLifecycle()
     var message by remember { mutableStateOf<String?>(null) }
     var showDiagnostics by remember { mutableStateOf(false) }
     LaunchedEffect(viewModel) { viewModel.messages.collect { message = it } }
@@ -112,6 +116,22 @@ fun TvAccountSettingsPane(
                 leadingIcon = Icons.Outlined.Sync,
                 onClick = viewModel::syncNow,
             )
+            if (outbox.rejected > 0) {
+                TvNavRow(
+                    label = pluralStringResource(R.plurals.youtube_account_outbox_rejected, outbox.rejected, outbox.rejected),
+                    supportingText = stringResource(R.string.youtube_account_outbox_rejected_summary),
+                    leadingIcon = Icons.Outlined.SyncProblem,
+                    onClick = viewModel::dismissRejected,
+                )
+            }
+            if (outbox.waiting > 0) {
+                TvNavRow(
+                    label = pluralStringResource(R.plurals.youtube_account_outbox_waiting, outbox.waiting, outbox.waiting),
+                    supportingText = stringResource(R.string.youtube_account_outbox_waiting_summary),
+                    leadingIcon = Icons.Outlined.CloudUpload,
+                    onClick = viewModel::retryOutbox,
+                )
+            }
             TvNavRow(
                 label = stringResource(R.string.youtube_account_remove),
                 supportingText = active.name,

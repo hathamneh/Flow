@@ -5,9 +5,11 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AccountCircle
 import androidx.compose.material.icons.outlined.BugReport
+import androidx.compose.material.icons.outlined.CloudUpload
 import androidx.compose.material.icons.outlined.PersonAdd
 import androidx.compose.material.icons.outlined.PersonOff
 import androidx.compose.material.icons.outlined.Sync
+import androidx.compose.material.icons.outlined.SyncProblem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.Composable
@@ -20,6 +22,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -28,6 +31,7 @@ import coil3.compose.AsyncImage
 import io.github.aedev.flow.BuildConfig
 import io.github.aedev.flow.R
 import io.github.aedev.flow.data.youtubeaccount.YouTubeAccount
+import io.github.aedev.flow.data.youtubeaccount.YouTubeOutbox
 import io.github.aedev.flow.ui.components.settings.SettingsGroupScope
 import io.github.aedev.flow.ui.components.settings.SettingsPage
 import io.github.aedev.flow.ui.components.settings.nav
@@ -47,6 +51,7 @@ internal fun YouTubeAccountScreen(
     val state by viewModel.state.collectAsStateWithLifecycle()
     val signIn by viewModel.signIn.collectAsStateWithLifecycle()
     val syncing by viewModel.syncing.collectAsStateWithLifecycle()
+    val outbox by viewModel.outboxStatus.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     LaunchedEffect(viewModel) { viewModel.messages.collect { snackbarHostState.showSnackbar(it) } }
@@ -93,6 +98,7 @@ internal fun YouTubeAccountScreen(
                 showChevron = false,
                 onClick = viewModel::syncNow,
             )
+            outboxRows(outbox, onDismissRejected = viewModel::dismissRejected, onRetry = viewModel::retryOutbox)
         }
         if (BuildConfig.YOUTUBE_SYNC_DIAGNOSTICS && active != null) {
             group(key = "youtube_account.debug") {
@@ -131,6 +137,36 @@ internal fun YouTubeAccountScreen(
             },
             onDismiss = { selectedId = null },
         )
+    }
+}
+
+/** The "couldn't sync" and "waiting to sync" lines, shown only while there is something to say. */
+private fun SettingsGroupScope.outboxRows(
+    status: YouTubeOutbox.Status,
+    onDismissRejected: () -> Unit,
+    onRetry: () -> Unit,
+) {
+    if (status.rejected > 0) {
+        row("youtube_account.outbox_rejected") { shape ->
+            FlowNavRow(
+                title = pluralStringResource(R.plurals.youtube_account_outbox_rejected, status.rejected, status.rejected),
+                supportingText = stringResource(R.string.youtube_account_outbox_rejected_summary),
+                leadingIcon = Icons.Outlined.SyncProblem,
+                shape = shape,
+                onClick = onDismissRejected,
+            )
+        }
+    }
+    if (status.waiting > 0) {
+        row("youtube_account.outbox_waiting") { shape ->
+            FlowNavRow(
+                title = pluralStringResource(R.plurals.youtube_account_outbox_waiting, status.waiting, status.waiting),
+                supportingText = stringResource(R.string.youtube_account_outbox_waiting_summary),
+                leadingIcon = Icons.Outlined.CloudUpload,
+                shape = shape,
+                onClick = onRetry,
+            )
+        }
     }
 }
 
