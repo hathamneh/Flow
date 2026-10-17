@@ -227,6 +227,13 @@ internal object YouTubeAccountParsers {
                 PlaylistEntry(videoId, entry.firstString("setVideoId") ?: entry.firstString("playlistSetVideoId"))
             }.toList()
 
+    /**
+     * Whether a playlist page offers edits: its entries' menus carry a `playlistEditEndpoint` (remove
+     * from playlist) only when the signed-in account owns the playlist. How the pull tells the account's
+     * own playlists from saved ones.
+     */
+    fun isEditable(root: JsonElement): Boolean = root.objectsWithKey("playlistEditEndpoint").any()
+
     /** The id `playlist/create` returns. */
     fun createdPlaylistId(root: JsonElement): String? = root.firstString("playlistId")
 

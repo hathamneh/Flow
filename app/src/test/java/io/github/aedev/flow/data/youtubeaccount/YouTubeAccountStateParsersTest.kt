@@ -145,4 +145,18 @@ class YouTubeAccountStateParsersTest {
         assertThat(YouTubeAccountParsers.playability(parse("""{"playabilityStatus":{"status":"OK"}}"""))).isEqualTo("OK")
         assertThat(YouTubeAccountParsers.playability(parse("{}"))).isNull()
     }
+
+    @Test
+    fun `a playlist is editable when its entries offer a playlist edit`() {
+        val own =
+            parse(
+                """{"contents":[{"tileRenderer":{"contentId":"vidAAAAAAAA","menu":{"menuRenderer":{"items":[
+                  {"menuServiceItemRenderer":{"serviceEndpoint":{"playlistEditEndpoint":{"playlistId":"PLx",
+                    "actions":[{"action":"ACTION_REMOVE_VIDEO","setVideoId":"SET-1"}]}}}}]}}}}]}""",
+            )
+        val saved = parse("""{"contents":[{"tileRenderer":{"contentId":"vidAAAAAAAA"}}]}""")
+
+        assertThat(YouTubeAccountParsers.isEditable(own)).isTrue()
+        assertThat(YouTubeAccountParsers.isEditable(saved)).isFalse()
+    }
 }

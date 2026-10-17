@@ -40,6 +40,8 @@ internal class SyncProbeSession(
         probeSubscription()
         probeWatchLater()
         probePlaylists()
+        probeOwnPlaylistRename(probePlaylistOwnership())
+        probePlaylistSave()
         probePlayerVariants()
         probeWatchedPing()
         probeHistoryRemove()

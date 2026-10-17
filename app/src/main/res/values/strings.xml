@@ -4454,6 +4454,10 @@
     <string name="yt_probe_check_playlist_remove">Remove from a playlist</string>
     <string name="yt_probe_check_playlist_delete_tv">Delete a playlist (TV body)</string>
     <string name="yt_probe_check_playlist_delete_web">Delete a playlist (WEB body)</string>
+    <string name="yt_probe_check_playlist_ownership">Tell your own playlists from saved ones</string>
+    <string name="yt_probe_check_playlist_rename_own">Rename one of your playlists and back</string>
+    <string name="yt_probe_check_playlist_save">Save someone else\'s playlist</string>
+    <string name="yt_probe_check_playlist_unsave">Remove the saved playlist again</string>
     <string name="yt_probe_check_player_variants">Ask the player in different ways</string>
     <string name="yt_probe_check_watched_ping">Mark watched with a full-length ping</string>
     <string name="yt_probe_check_history_remove">Remove a video from history</string>
@@ -4491,6 +4495,11 @@
     <string name="yt_probe_note_set_video_ids">setVideoId on %1$s of %2$s videos</string>
     <string name="yt_probe_note_title">Title now: %1$s</string>
     <string name="yt_probe_note_nothing_left">Nothing left to delete</string>
+    <string name="yt_probe_note_own_playlists">Yours (they offer edits): %1$s</string>
+    <string name="yt_probe_note_saved_playlists">Saved: %1$s</string>
+    <string name="yt_probe_note_no_own_playlist">No playlist of yours was found to rename</string>
+    <string name="yt_probe_note_name_restored">Name restored to %1$s</string>
+    <string name="yt_probe_note_left_renamed">Still named %1$s. Rename it back to %2$s on youtube.com.</string>
     <string name="yt_probe_note_variant">%1$s: %2$s, tracking %3$s</string>
     <string name="yt_probe_note_variant_used">Later checks use %1$s</string>
     <string name="yt_probe_note_variant_po">PO token %1$s</string>
