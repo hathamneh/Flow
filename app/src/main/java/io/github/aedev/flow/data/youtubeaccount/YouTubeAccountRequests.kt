@@ -162,4 +162,22 @@ internal object YouTubeAccountRequests {
             put("racyCheckOk", true)
             put("contentCheckOk", true)
         }
+
+    /**
+     * A `/player` request. Without the current player's [signatureTimestamp], YouTube answers
+     * "UNPLAYABLE: The page needs to be reloaded" and leaves out the tracking URLs history needs.
+     */
+    fun player(
+        videoId: String,
+        signatureTimestamp: Int?,
+    ) = fields {
+        put("videoId", videoId)
+        put("racyCheckOk", true)
+        put("contentCheckOk", true)
+        if (signatureTimestamp != null) {
+            putJsonObject("playbackContext") {
+                putJsonObject("contentPlaybackContext") { put("signatureTimestamp", signatureTimestamp) }
+            }
+        }
+    }
 }

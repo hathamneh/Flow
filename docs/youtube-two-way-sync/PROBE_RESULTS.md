@@ -9,6 +9,8 @@ There were three runs:
 | 1 | 20:11 | first probe build | Found the `removedislike` 404 and the URL-encoded bell params. |
 | 2 | 20:34 | fixed build | Like checks were skipped: run 1 had left the test video disliked. |
 | 3 | 20:35 | fixed build | Full run, after the owner cleared the dislike. This is the reference run. |
+| 4–5 | 21:18, 21:23 | playability build | Broken by the phone: AdGuard's DNS protection began failing lookups partway through (`UnknownHostException`, cached within ms). 52 of 160 lookups failed in a burst test. Cleanup calls failed too (see below). |
+| 6 | 21:28 | playability build | With Flow excluded from AdGuard. Same results as run 3. The new playability note gave the `/player` answer. |
 
 ## Results (run 3 unless noted)
 
@@ -41,7 +43,11 @@ There were three runs:
 | 7 | `history/resume_watch_history` | Unverified | 200 | Accepted. The state can't be read back. |
 | 10 | WEB_REMIX browse with the TV token | **Pass** (refused as expected) | 400 | Confirms that YouTube Music library writes are out |
 
-Every check cleaned up after itself, except `removedislike` in run 1, which left a dislike that the owner removed by hand.
+Every check cleaned up after itself, except two:
+- `removedislike` in run 1 left a dislike, which the owner removed by hand.
+- Runs 4–5 lost the network partway through. Run 5 liked the music test video (`dQw4w9WgXcQ`) and then couldn't unlike it. Run 6 skipped subscribe because the account was already subscribed to the test channel (`UC4QobU6STFB0P71PMvOGN5A`, jawed), probably left over from run 4, whose log was lost. Both need removing by hand.
+
+**Run 6 and `/player`:** YouTube answers the account's TV `/player` call with `UNPLAYABLE: The page needs to be reloaded.` The request carried no `playbackContext.contentPlaybackContext.signatureTimestamp`; the codebase already notes that MWEB returns UNPLAYABLE without it. The account `/player` request now sends the decoder's timestamp (`PipePipeNsigDecoder.signatureTimestamp()`, the one `TizenStreamResolver` already uses for a TV client). The next run shows whether that brings back `playbackTracking`.
 
 ## What this changes
 
@@ -51,7 +57,7 @@ Every check cleaned up after itself, except `removedislike` in run 1, which left
 4. **Rename is unverified.** Phase 2 needs a one-off rename-and-restore probe on one of the owner's existing playlists, with their approval, before shipping rename.
 5. **The bell can't be written** under TV auth. Bell sync is dropped: the bell stays local to Flow.
 6. **History pause/resume is write-only.** Flow can send its own toggle to YouTube, but it can't learn the account's state, so it never pulls it.
-7. **`/player` returns no `playbackTracking`** for this token. Watched pings and "remove from history" are blocked by it. **So is the existing history upload (`YouTubeWatchReporter`), which uses the same call and returns silently when the URLs are missing.** The probe now records the `playabilityStatus` so the next run shows why. This has to be understood before Phase 3, and it's worth checking now whether Flow watches still reach youtube.com history.
+7. **`/player` returns no `playbackTracking`** for this token. Run 6 showed why: UNPLAYABLE, "The page needs to be reloaded", from the missing `signatureTimestamp`. The fix is in; a re-run must confirm it. Watched pings and "remove from history" are blocked by it. **So is the existing history upload (`YouTubeWatchReporter`), which uses the same call and returns silently when the URLs are missing.** The probe now records the `playabilityStatus` so the next run shows why. This has to be understood before Phase 3, and it's worth checking now whether Flow watches still reach youtube.com history.
 
 Open questions from FINDINGS.md §6:
 

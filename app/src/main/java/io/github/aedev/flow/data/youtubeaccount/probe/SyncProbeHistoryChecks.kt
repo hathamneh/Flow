@@ -18,6 +18,7 @@ import io.github.aedev.flow.data.youtubeaccount.probe.SyncProbeSession.Companion
 import io.github.aedev.flow.data.youtubeaccount.probe.SyncProbeSession.Companion.UNKNOWN
 import io.github.aedev.flow.data.youtubeaccount.probe.SyncProbeSession.Companion.VIDEO
 import io.github.aedev.flow.data.youtubeaccount.statsSeconds
+import io.github.aedev.flow.utils.cipher.PipePipeNsigDecoder
 
 private const val HISTORY_READ_ATTEMPTS = 8
 private const val PRIVACY_PAGE = "SPaccount_privacy"
@@ -45,7 +46,7 @@ private fun pingParams(
 /** The "mark as watched" every client fakes: a watch record opened and closed at the very end. */
 internal suspend fun SyncProbeSession.probeWatchedPing() {
     running(WATCHED_PING)
-    val urls = call { api.player(it, VIDEO) }
+    val urls = call { api.player(it, VIDEO, PipePipeNsigDecoder.signatureTimestamp()) }
     if (!urls.ok) return fail(WATCHED_PING, urls)
     val tracking = urls.value?.let(YouTubeAccountParsers::trackingUrls)
     val watchtimeUrl = tracking?.watchtimeUrl
@@ -111,7 +112,7 @@ internal suspend fun SyncProbeSession.probeHistoryRemove() {
     val videoId =
         HISTORY_VIDEOS.firstOrNull { it !in seen }
             ?: return skip(HISTORY_REMOVE, SyncProbeNote(R.string.yt_probe_note_already, HISTORY))
-    val urls = call { api.player(it, videoId) }
+    val urls = call { api.player(it, videoId, PipePipeNsigDecoder.signatureTimestamp()) }
     if (!urls.ok) return fail(HISTORY_REMOVE, urls)
     val playability = urls.value?.let(YouTubeAccountParsers::playability) ?: UNKNOWN
     val tracking =

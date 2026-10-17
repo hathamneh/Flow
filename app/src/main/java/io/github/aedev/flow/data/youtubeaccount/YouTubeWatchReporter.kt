@@ -2,6 +2,7 @@ package io.github.aedev.flow.data.youtubeaccount
 
 import android.util.Log
 import io.github.aedev.flow.data.local.PlaybackProgressListener
+import io.github.aedev.flow.utils.cipher.PipePipeNsigDecoder
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -84,7 +85,7 @@ class YouTubeWatchReporter
                         now - current.lastPingAt < SESSION_GAP_MS
                 if (!sameSession) {
                     if (!mayOpen) return@withActiveAuth
-                    val urls = api.trackingUrls(auth, videoId) ?: return@withActiveAuth
+                    val urls = api.trackingUrls(auth, videoId, PipePipeNsigDecoder.signatureTimestamp()) ?: return@withActiveAuth
                     val started = Session(videoId, account.id, urls, newCpn(), lastPositionMs = positionMs, lastPingAt = now)
                     api.ping(auth, urls.playbackUrl, started.params(positionMs, durationMs))
                     session = started

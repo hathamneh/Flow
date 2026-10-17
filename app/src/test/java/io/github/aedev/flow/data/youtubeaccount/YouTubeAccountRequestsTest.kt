@@ -67,4 +67,18 @@ class YouTubeAccountRequestsTest {
         assertThat(webClient).doesNotContainKey("tvAppInfo")
         assertThat(web["playlistId"].toString()).isEqualTo("\"PLx\"")
     }
+
+    @Test
+    fun `a player request carries the signature timestamp, without which YouTube leaves out the tracking URLs`() {
+        assertThat(YouTubeAccountRequests.player("vid", signatureTimestamp = 20345)).isEqualTo(
+            json(
+                """
+                {"videoId":"vid","racyCheckOk":true,"contentCheckOk":true,
+                 "playbackContext":{"contentPlaybackContext":{"signatureTimestamp":20345}}}
+                """,
+            ),
+        )
+        assertThat(YouTubeAccountRequests.player("vid", signatureTimestamp = null))
+            .isEqualTo(json("""{"videoId":"vid","racyCheckOk":true,"contentCheckOk":true}"""))
+    }
 }

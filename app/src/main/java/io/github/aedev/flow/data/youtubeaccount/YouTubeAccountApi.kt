@@ -162,13 +162,19 @@ class YouTubeAccountApi
         suspend fun trackingUrls(
             auth: Auth,
             videoId: String,
-        ): PlaybackTrackingUrls? = YouTubeAccountParsers.trackingUrls(player(auth, videoId))
+            signatureTimestamp: Int?,
+        ): PlaybackTrackingUrls? = YouTubeAccountParsers.trackingUrls(player(auth, videoId, signatureTimestamp))
 
-        /** The signed-in `/player` response for [videoId], for its tracking URLs and playability; streams are ignored. */
+        /**
+         * The signed-in `/player` response for [videoId], for its tracking URLs and playability; streams
+         * are ignored. [signatureTimestamp] is the current player's (`PipePipeNsigDecoder`); without it
+         * the response is UNPLAYABLE and has no tracking URLs.
+         */
         suspend fun player(
             auth: Auth,
             videoId: String,
-        ): JsonElement = innerTube("player", auth, Requests.videoId(videoId))
+            signatureTimestamp: Int?,
+        ): JsonElement = innerTube("player", auth, Requests.player(videoId, signatureTimestamp))
 
         suspend fun browse(
             auth: Auth,

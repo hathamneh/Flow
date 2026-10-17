@@ -185,7 +185,7 @@ All of these passed the probe, including dislikes and likes on music videos, whi
 
 ### Phase 3: history (2–3 pd)
 
-- **Blocker first:** the TV `/player` response had no `playbackTracking` for the owner's account. That stops watched pings and the probe's history-removal check. It may also mean the existing history upload (`YouTubeWatchReporter`) silently does nothing. Find out why from the probe's `playabilityStatus` note, and fix it, before the rest of this phase.
+- **Blocker first (cause found):** the TV `/player` call was UNPLAYABLE ("The page needs to be reloaded") because it sent no `signatureTimestamp`. It now sends the decoder's; confirm with a probe run. Before the fix: the TV `/player` response had no `playbackTracking` for the owner's account. That stops watched pings and the probe's history-removal check. It may also mean the existing history upload (`YouTubeWatchReporter`) silently does nothing. Find out why from the probe's `playabilityStatus` note, and fix it, before the rest of this phase.
 - Remove from history, using an on-demand feedback-token lookup (still unproven live).
 - Clear history.
 - Pause and resume are **Flow → YouTube only**: the calls are accepted, but the account's state can't be read back, so it's never pulled.
