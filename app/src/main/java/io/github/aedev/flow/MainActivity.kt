@@ -36,6 +36,7 @@ import io.github.aedev.flow.data.playlist.PlaylistImport
 import io.github.aedev.flow.data.playlist.PlaylistTransfer
 import io.github.aedev.flow.data.recommendation.FlowNeuroEngine
 import io.github.aedev.flow.data.repository.OriginalTitleRepository
+import io.github.aedev.flow.data.youtubeaccount.YouTubeAccountSyncWorker
 import io.github.aedev.flow.discord.DiscordPresenceRuntime
 import io.github.aedev.flow.notification.NotificationHelper
 import io.github.aedev.flow.platform.AppIconController
@@ -315,6 +316,8 @@ class MainActivity : ComponentActivity() {
     override fun onStart() {
         super.onStart()
         DiscordPresenceRuntime.setAppForeground(true)
+        // Pick up history and subscriptions added on other devices signed in to the same account.
+        YouTubeAccountSyncWorker.requestSync(this)
     }
 
     override fun onDestroy() {

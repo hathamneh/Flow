@@ -44,9 +44,17 @@ class ViewHistory private constructor(
     companion object {
         private const val TAG = "ViewHistory"
         private const val WATCH_HISTORY_TABLE = "watch_history"
+        private const val KNOWN_IDS_BATCH = 500
 
         @Volatile
         private var instance: ViewHistory? = null
+
+        /**
+         * Set once at startup by the YouTube account module, which mirrors watch progress to the active
+         * Google account. Null (the default, and in guest mode it simply does nothing) keeps history local.
+         */
+        @Volatile
+        var progressListener: PlaybackProgressListener? = null
 
         fun getInstance(context: Context): ViewHistory =
             instance ?: synchronized(this) {
@@ -111,6 +119,7 @@ class ViewHistory private constructor(
                 isLocal = isLocal,
             ),
         )
+        if (!isLocal) progressListener?.onPlaybackProgress(videoId, position, duration)
     }
 
     /**
@@ -132,6 +141,10 @@ class ViewHistory private constructor(
     }
 
     suspend fun getSavedPosition(videoId: String): Long = dao.getPosition(videoId) ?: 0L
+
+    /** Which of [videoIds] already have a history row, checked in batches SQLite's argument limit allows. */
+    suspend fun knownVideoIds(videoIds: Collection<String>): Set<String> =
+        videoIds.chunked(KNOWN_IDS_BATCH).flatMapTo(HashSet()) { dao.existingVideoIds(it) }
 
     /**
      * Create-or-touch a history entry **without** overwriting an already-saved

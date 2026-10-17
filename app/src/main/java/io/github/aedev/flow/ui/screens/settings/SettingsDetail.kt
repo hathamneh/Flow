@@ -35,6 +35,7 @@ import io.github.aedev.flow.ui.screens.settings.taste.TasteScreen
 import io.github.aedev.flow.ui.screens.settings.topics.TopicPreferencesScreen
 import io.github.aedev.flow.ui.screens.settings.wellbeing.WellbeingScreen
 import io.github.aedev.flow.ui.screens.settings.widgets.WidgetsSettingsScreen
+import io.github.aedev.flow.ui.screens.settings.youtubeaccount.YouTubeAccountScreen
 import io.github.aedev.flow.ui.screens.sync.SyncScreen
 
 /**
@@ -141,6 +142,10 @@ internal fun SettingsDetail(
 
         SettingsDestination.SCROBBLING -> {
             ScrobblingScreen(onBack = onBack, highlight = target.highlight)
+        }
+
+        SettingsDestination.YOUTUBE_ACCOUNT -> {
+            YouTubeAccountScreen(onBack = onBack, highlight = target.highlight)
         }
 
         SettingsDestination.BACKUP -> {

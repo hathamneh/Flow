@@ -102,6 +102,9 @@ interface WatchHistoryDao {
     @Query("UPDATE watch_history SET position = 0 WHERE videoId = :videoId")
     suspend fun clearProgress(videoId: String)
 
+    @Query("SELECT videoId FROM watch_history WHERE videoId IN (:videoIds)")
+    suspend fun existingVideoIds(videoIds: List<String>): List<String>
+
     @Query("SELECT position FROM watch_history WHERE videoId = :videoId")
     suspend fun getPosition(videoId: String): Long?
 

@@ -10,8 +10,10 @@ import coil3.SingletonImageLoader
 import dagger.hilt.android.HiltAndroidApp
 import io.github.aedev.flow.data.local.PlayerPreferences
 import io.github.aedev.flow.data.local.SubscriptionRepository
+import io.github.aedev.flow.data.local.ViewHistory
 import io.github.aedev.flow.data.repository.NewPipeDownloader
 import io.github.aedev.flow.data.repository.YouTubeRepository
+import io.github.aedev.flow.data.youtubeaccount.YouTubeWatchReporter
 import io.github.aedev.flow.discord.DiscordPresenceRuntime
 import io.github.aedev.flow.innertube.YouTube
 import io.github.aedev.flow.network.AppProxyManager
@@ -73,6 +75,9 @@ class FlowApplication :
     @Inject
     internal lateinit var homeFeedLanguageReset: HomeFeedLanguageReset
 
+    @Inject
+    lateinit var youTubeWatchReporter: YouTubeWatchReporter
+
     override fun newImageLoader(context: PlatformContext): ImageLoader = imageLoader
 
     companion object {
@@ -92,6 +97,9 @@ class FlowApplication :
         YouTube.cacheDirectory = cacheDir.resolve("innertube_http_cache")
 
         DiscordPresenceRuntime.initialize(this, okHttpClient)
+
+        // Mirrors watch progress to the active Google account; does nothing in guest mode.
+        ViewHistory.progressListener = youTubeWatchReporter
 
         val playerPreferences = PlayerPreferences(this)
 

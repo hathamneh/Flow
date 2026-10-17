@@ -24,6 +24,7 @@ internal object SettingsIndex {
             TopicsIndex.all +
             IntegrationsIndex.all +
             ScrobblingIndex.all +
+            YouTubeAccountIndex.all +
             BackupIndex.all +
             DownloadsIndex.all +
             LocalMediaIndex.all +
