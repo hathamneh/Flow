@@ -148,4 +148,94 @@ class YouTubeAccountApiTest {
             runBlocking { api.browse(YouTubeAccountApi.Auth("AT", null), browseId = "FEhistory") }
         }
     }
+
+    private val auth = YouTubeAccountApi.Auth("AT", pageId = null)
+
+    @Test
+    fun `writes go to their endpoint with the TV client and the target in the body`() =
+        runBlocking {
+            val api = api { 200 to "{}" }
+
+            api.rate(auth, "vidAAAAAAAA", LikeAction.REMOVE)
+            api.setSubscribed(auth, "UCx", subscribed = false)
+            api.editPlaylist(auth, "WL", listOf(PlaylistEdit.Add("vidAAAAAAAA")))
+            api.setWatchHistoryPaused(auth, paused = true)
+
+            assertThat(requests.map { it.url.encodedPath })
+                .containsExactly(
+                    "/youtubei/v1/like/removelike",
+                    "/youtubei/v1/subscription/unsubscribe",
+                    "/youtubei/v1/browse/edit_playlist",
+                    "/youtubei/v1/history/pause_watch_history",
+                ).inOrder()
+            assertThat(requests.map { it.header("X-YouTube-Client-Name") }.distinct()).containsExactly("7")
+            assertThat(bodies[0]).contains("\"target\":{\"videoId\":\"vidAAAAAAAA\"}")
+            assertThat(bodies[1]).contains("\"channelIds\":[\"UCx\"]")
+            assertThat(bodies[2]).contains("\"dedupeOption\":\"DEDUPE_OPTION_SKIP\"")
+        }
+
+    @Test
+    fun `a playlist can be created with the WEB body and returns its id`() =
+        runBlocking {
+            val api = api { 200 to """{"playlistId":"PLnew"}""" }
+
+            val id = api.createPlaylist(auth, "Probe", listOf("vidAAAAAAAA"), AccountClient.WEB)
+
+            assertThat(id).isEqualTo("PLnew")
+            assertThat(requests.single().url.encodedPath).isEqualTo("/youtubei/v1/playlist/create")
+            assertThat(requests.single().header("X-YouTube-Client-Name")).isEqualTo("1")
+            assertThat(requests.single().header("Authorization")).isEqualTo("Bearer AT")
+            assertThat(bodies.single()).contains("\"clientName\":\"WEB\"")
+        }
+
+    @Test
+    fun `YouTube Music requests go to the music host`() =
+        runBlocking {
+            val api = api { 200 to "{}" }
+
+            api.browse(auth, browseId = "FEmusic_liked_videos", client = AccountClient.WEB_REMIX)
+
+            assertThat(requests.single().url.host).isEqualTo("music.youtube.com")
+            assertThat(requests.single().header("Origin")).isEqualTo("https://music.youtube.com")
+            assertThat(bodies.single()).contains("\"clientName\":\"WEB_REMIX\"")
+        }
+
+    @Test
+    fun `a refused write carries its HTTP status`() {
+        val api = api { 400 to """{"error":{"code":400}}""" }
+        val error =
+            assertThrows(YouTubeHttpException::class.java) {
+                runBlocking { api.deletePlaylist(auth, "PLx") }
+            }
+        assertThat(error.code).isEqualTo(400)
+    }
+
+    @Test
+    fun `an empty write response is accepted`() =
+        runBlocking {
+            api { 200 to "" }.clearWatchHistory(auth)
+            assertThat(requests.single().url.encodedPath).isEqualTo("/youtubei/v1/history/clear_watch_history")
+        }
+
+    @Test
+    fun `the history token lookup pages until the video turns up`() =
+        runBlocking {
+            val api =
+                api { request ->
+                    val body = Buffer().also { request.body!!.writeTo(it) }.readUtf8()
+                    if ("\"continuation\"" in body) {
+                        200 to
+                            """{"tileRenderer":{"contentId":"vidBBBBBBBB",
+                              "menu":{"feedbackEndpoint":{"feedbackToken":"TOKEN-B"}}}}"""
+                    } else {
+                        200 to
+                            """{"contents":[{"tileRenderer":{"contentId":"vidAAAAAAAA",
+                              "menu":{"feedbackEndpoint":{"feedbackToken":"TOKEN-A"}}}}],
+                              "continuations":[{"nextContinuationData":{"continuation":"NEXT"}}]}"""
+                    }
+                }
+
+            assertThat(api.historyFeedbackToken(auth, "vidBBBBBBBB")).isEqualTo("TOKEN-B")
+            assertThat(requests).hasSize(2)
+        }
 }

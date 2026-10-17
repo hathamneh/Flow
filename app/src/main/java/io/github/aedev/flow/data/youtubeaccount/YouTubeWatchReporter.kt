@@ -85,7 +85,7 @@ class YouTubeWatchReporter
                 if (!sameSession) {
                     if (!mayOpen) return@withActiveAuth
                     val urls = api.trackingUrls(auth, videoId) ?: return@withActiveAuth
-                    val started = Session(videoId, account.id, urls, cpn(), lastPositionMs = positionMs, lastPingAt = now)
+                    val started = Session(videoId, account.id, urls, newCpn(), lastPositionMs = positionMs, lastPingAt = now)
                     api.ping(auth, urls.playbackUrl, started.params(positionMs, durationMs))
                     session = started
                     return@withActiveAuth
@@ -96,8 +96,8 @@ class YouTubeWatchReporter
                 val params =
                     open.params(positionMs, durationMs) +
                         mapOf(
-                            "st" to seconds(open.lastPositionMs),
-                            "et" to seconds(positionMs),
+                            "st" to statsSeconds(open.lastPositionMs),
+                            "et" to statsSeconds(positionMs),
                             "state" to "playing",
                         )
                 api.ping(auth, watchtimeUrl, params)
@@ -119,8 +119,8 @@ class YouTubeWatchReporter
             ) = mapOf(
                 "ver" to "2",
                 "cpn" to cpn,
-                "cmt" to seconds(positionMs),
-                "len" to seconds(durationMs),
+                "cmt" to statsSeconds(positionMs),
+                "len" to statsSeconds(durationMs),
             )
         }
 
@@ -132,11 +132,14 @@ class YouTubeWatchReporter
 
             /** Flow saves every 10 s; YouTube's own clients ping watch time far less often. */
             const val MIN_PING_INTERVAL_MS = 20_000L
-            const val CPN_ALPHABET = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_"
-            const val CPN_LENGTH = 16
-
-            fun cpn(): String = (1..CPN_LENGTH).map { CPN_ALPHABET[Random.nextInt(CPN_ALPHABET.length)] }.joinToString("")
-
-            fun seconds(ms: Long): String = String.format(Locale.US, "%.3f", ms / 1000.0)
         }
     }
+
+private const val CPN_ALPHABET = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_"
+private const val CPN_LENGTH = 16
+
+/** A fresh client playback nonce: the id YouTube groups one viewing's stats pings under. */
+internal fun newCpn(): String = (1..CPN_LENGTH).map { CPN_ALPHABET[Random.nextInt(CPN_ALPHABET.length)] }.joinToString("")
+
+/** Milliseconds as the seconds string the stats endpoints take, such as `12.345`. */
+internal fun statsSeconds(ms: Long): String = String.format(Locale.US, "%.3f", ms / 1000.0)

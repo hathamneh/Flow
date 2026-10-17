@@ -1,12 +1,10 @@
 package io.github.aedev.flow.data.youtubeaccount
 
-import io.github.aedev.flow.innertube.models.YouTubeClient
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.JsonObjectBuilder
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.longOrNull
@@ -17,6 +15,7 @@ import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
+import okhttp3.Response
 import java.io.IOException
 import java.util.Locale
 import javax.inject.Inject
@@ -146,44 +145,155 @@ class YouTubeAccountApi
 
         suspend fun accounts(auth: Auth): List<RemoteIdentity> =
             YouTubeAccountParsers.accounts(
-                innerTube("account/accounts_list", auth) {
-                    putJsonObject("accountReadMask") {
-                        put("returnOwner", true)
-                        put("returnBrandAccounts", true)
-                        put("returnPersonaAccounts", false)
-                    }
-                },
+                innerTube(
+                    "account/accounts_list",
+                    auth,
+                    Requests.fields {
+                        putJsonObject("accountReadMask") {
+                            put("returnOwner", true)
+                            put("returnBrandAccounts", true)
+                            put("returnPersonaAccounts", false)
+                        }
+                    },
+                ),
             )
 
         /** The playback-stats URLs for [videoId] as the signed-in account; streams in the response are ignored. */
         suspend fun trackingUrls(
             auth: Auth,
             videoId: String,
-        ): PlaybackTrackingUrls? =
-            YouTubeAccountParsers.trackingUrls(
-                innerTube("player", auth) {
-                    put("videoId", videoId)
-                    put("racyCheckOk", true)
-                    put("contentCheckOk", true)
-                },
-            )
+        ): PlaybackTrackingUrls? = YouTubeAccountParsers.trackingUrls(player(auth, videoId))
+
+        /** The signed-in `/player` response for [videoId], for its tracking URLs and playability; streams are ignored. */
+        suspend fun player(
+            auth: Auth,
+            videoId: String,
+        ): JsonElement = innerTube("player", auth, Requests.videoId(videoId))
 
         suspend fun browse(
             auth: Auth,
             browseId: String? = null,
             continuation: String? = null,
+            client: AccountClient = AccountClient.TV,
         ): JsonElement =
-            innerTube("browse", auth) {
-                browseId?.let { put("browseId", it) }
-                continuation?.let { put("continuation", it) }
-            }
+            innerTube(
+                "browse",
+                auth,
+                Requests.fields {
+                    browseId?.let { put("browseId", it) }
+                    continuation?.let { put("continuation", it) }
+                },
+                client,
+            )
 
-        /** Fires one playback-stats ping (`/api/stats/playback` or `/api/stats/watchtime`). */
+        /** The watch page for [videoId] as the account sees it: its like, subscribe and bell state. */
+        suspend fun next(
+            auth: Auth,
+            videoId: String,
+        ): JsonElement = innerTube("next", auth, Requests.videoId(videoId))
+
+        suspend fun rate(
+            auth: Auth,
+            videoId: String,
+            action: LikeAction,
+        ) {
+            innerTube(action.path, auth, Requests.videoTarget(videoId))
+        }
+
+        /** Saves someone else's playlist to the library, or removes it. */
+        suspend fun setPlaylistSaved(
+            auth: Auth,
+            playlistId: String,
+            saved: Boolean,
+        ) {
+            innerTube(if (saved) LikeAction.LIKE.path else LikeAction.REMOVE.path, auth, Requests.playlistTarget(playlistId))
+        }
+
+        /** [params] on a subscribe carry a bell choice, the way the TV app re-subscribes to change it. */
+        suspend fun setSubscribed(
+            auth: Auth,
+            channelId: String,
+            subscribed: Boolean,
+            params: String = "",
+        ) {
+            innerTube(if (subscribed) "subscription/subscribe" else "subscription/unsubscribe", auth, Requests.channels(channelId, params))
+        }
+
+        /** Applies [edits] in order to a playlist; `WL` is Watch later. */
+        suspend fun editPlaylist(
+            auth: Auth,
+            playlistId: String,
+            edits: List<PlaylistEdit>,
+        ) {
+            innerTube("browse/edit_playlist", auth, Requests.editPlaylist(playlistId, edits))
+        }
+
+        /** The new playlist's id, or null when YouTube accepted the call without returning one. */
+        suspend fun createPlaylist(
+            auth: Auth,
+            title: String,
+            videoIds: List<String> = emptyList(),
+            client: AccountClient = AccountClient.TV,
+            private: Boolean = true,
+        ): String? =
+            YouTubeAccountParsers.createdPlaylistId(
+                innerTube("playlist/create", auth, Requests.createPlaylist(title, videoIds, private), client),
+            )
+
+        suspend fun deletePlaylist(
+            auth: Auth,
+            playlistId: String,
+            client: AccountClient = AccountClient.TV,
+        ) {
+            innerTube("playlist/delete", auth, Requests.playlistId(playlistId), client)
+        }
+
+        /** Sends feedback tokens read from a signed-in feed, such as "remove from watch history". */
+        suspend fun feedback(
+            auth: Auth,
+            tokens: List<String>,
+        ) {
+            innerTube("feedback", auth, Requests.feedback(tokens))
+        }
+
+        suspend fun setWatchHistoryPaused(
+            auth: Auth,
+            paused: Boolean,
+        ) {
+            innerTube(if (paused) "history/pause_watch_history" else "history/resume_watch_history", auth, Requests.fields {})
+        }
+
+        suspend fun clearWatchHistory(auth: Auth) {
+            innerTube("history/clear_watch_history", auth, Requests.fields {})
+        }
+
+        /** Sets a channel's bell; [params] come from that state's option in [next]. */
+        suspend fun setNotificationPreference(
+            auth: Auth,
+            params: String,
+        ) {
+            innerTube("notification/modify_channel_preference", auth, Requests.params(params))
+        }
+
+        /** The "remove from watch history" token of [videoId], looked up on the first history pages. */
+        suspend fun historyFeedbackToken(
+            auth: Auth,
+            videoId: String,
+        ): String? {
+            var token: String? = null
+            browsePages(auth, HISTORY, HISTORY_TOKEN_PAGES) { page ->
+                token = YouTubeAccountParsers.historyFeedbackTokens(page)[videoId]
+                token == null
+            }
+            return token
+        }
+
+        /** Fires one playback-stats ping (`/api/stats/playback` or `/api/stats/watchtime`) and returns its HTTP status. */
         suspend fun ping(
             auth: Auth,
             baseUrl: String,
             params: Map<String, String>,
-        ) {
+        ): Int =
             withContext(Dispatchers.IO) {
                 val url =
                     baseUrl
@@ -198,54 +308,48 @@ class YouTubeAccountApi
                         .authHeaders(auth)
                         .build()
                 httpClient.newCall(request).execute().use { response ->
-                    if (response.code == HTTP_UNAUTHORIZED) throw YouTubeUnauthorizedException()
-                    if (!response.isSuccessful) throw IOException("Stats ping failed: HTTP ${response.code}")
+                    response.throwIfFailed("Stats ping")
+                    response.code
                 }
             }
-        }
 
         private suspend fun innerTube(
             path: String,
             auth: Auth,
-            fields: JsonObjectBuilder.() -> Unit,
+            fields: JsonObject,
+            client: AccountClient = AccountClient.TV,
         ): JsonElement =
             withContext(Dispatchers.IO) {
                 val locale = Locale.getDefault()
                 val body =
-                    buildJsonObject {
-                        putJsonObject("context") {
-                            putJsonObject("client") {
-                                put("clientName", TV_CLIENT.clientName)
-                                put("clientVersion", TV_CLIENT.clientVersion)
-                                put("hl", locale.language.ifBlank { "en" })
-                                put("gl", locale.country.ifBlank { "US" })
-                                put("userAgent", TV_USER_AGENT)
-                                putJsonObject("tvAppInfo") {
-                                    put("appQuality", "TV_APP_QUALITY_FULL_ANIMATION")
-                                    put("zylonLeftNav", true)
-                                }
-                            }
-                            putJsonObject("user") { put("enableSafetyMode", false) }
-                        }
-                        fields()
-                    }
+                    Requests.body(
+                        client,
+                        hl = locale.language.ifBlank { "en" },
+                        gl = locale.country.ifBlank { "US" },
+                        fields = fields,
+                    )
                 val request =
                     Request
                         .Builder()
-                        .url("$INNERTUBE_URL$path?prettyPrint=false")
+                        .url("${client.host}$INNERTUBE_PATH$path?prettyPrint=false")
                         .post(body.toString().toRequestBody(JSON_TYPE))
-                        .header("X-YouTube-Client-Name", TV_CLIENT.clientId)
-                        .header("X-YouTube-Client-Version", TV_CLIENT.clientVersion)
-                        .header("Origin", ORIGIN)
-                        .header("Referer", TV_PAGE_URL)
-                        .authHeaders(auth)
+                        .header("X-YouTube-Client-Name", client.client.clientId)
+                        .header("X-YouTube-Client-Version", client.client.clientVersion)
+                        .header("Origin", client.host)
+                        .header("Referer", client.referer)
+                        .authHeaders(auth, client.userAgent)
                         .build()
                 httpClient.newCall(request).execute().use { response ->
-                    if (response.code == HTTP_UNAUTHORIZED) throw YouTubeUnauthorizedException()
-                    if (!response.isSuccessful) throw IOException("InnerTube $path failed: HTTP ${response.code}")
-                    json.parseToJsonElement(response.body.string())
+                    response.throwIfFailed("InnerTube $path")
+                    val text = response.body.string()
+                    if (text.isBlank()) JsonObject(emptyMap()) else json.parseToJsonElement(text)
                 }
             }
+
+        private fun Response.throwIfFailed(what: String) {
+            if (code == HTTP_UNAUTHORIZED) throw YouTubeUnauthorizedException()
+            if (!isSuccessful) throw YouTubeHttpException(code, "$what failed: HTTP $code")
+        }
 
         private fun get(url: String): String? =
             httpClient
@@ -279,10 +383,13 @@ class YouTubeAccountApi
             }
         }
 
-        private fun Request.Builder.authHeaders(auth: Auth): Request.Builder =
+        private fun Request.Builder.authHeaders(
+            auth: Auth,
+            userAgent: String = TV_USER_AGENT,
+        ): Request.Builder =
             apply {
                 header("Authorization", "Bearer ${auth.accessToken}")
-                header("User-Agent", TV_USER_AGENT)
+                header("User-Agent", userAgent)
                 auth.pageId?.let { header("X-Goog-Pageid", it) }
             }
 
@@ -304,13 +411,11 @@ class YouTubeAccountApi
         )
 
         private companion object {
-            val TV_CLIENT = YouTubeClient.TVHTML5
-            const val TV_USER_AGENT =
-                "Mozilla/5.0 (ChromiumStylePlatform) Cobalt/25.lts.30.1034943-gold (unlike Gecko), " +
-                    "Unknown_TV_Unknown_0/Unknown (Unknown, Unknown)"
-            const val ORIGIN = "https://www.youtube.com"
+            val Requests = YouTubeAccountRequests
             const val TV_PAGE_URL = "https://www.youtube.com/tv"
-            const val INNERTUBE_URL = "https://www.youtube.com/youtubei/v1/"
+            const val INNERTUBE_PATH = "/youtubei/v1/"
+            const val HISTORY = "FEhistory"
+            const val HISTORY_TOKEN_PAGES = 3
             const val DEVICE_CODE_URL = "https://www.youtube.com/o/oauth2/device/code"
             const val TOKEN_URL = "https://www.youtube.com/o/oauth2/token"
             const val REVOKE_URL = "https://oauth2.googleapis.com/revoke"
@@ -333,5 +438,11 @@ class YouTubeAccountApi
         }
     }
 
+/** YouTube answered with an HTTP error; [code] is what callers classify on (retry, give up, refresh). */
+open class YouTubeHttpException(
+    val code: Int,
+    message: String,
+) : IOException(message)
+
 /** InnerTube answered 401: the cached access token expired early or was revoked. */
-class YouTubeUnauthorizedException : IOException("YouTube refused the access token")
+class YouTubeUnauthorizedException : YouTubeHttpException(401, "YouTube refused the access token")

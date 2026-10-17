@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.BugReport
 import androidx.compose.material.icons.outlined.PersonAdd
 import androidx.compose.material.icons.outlined.PersonRemove
 import androidx.compose.material.icons.outlined.Sync
@@ -25,6 +26,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import io.github.aedev.flow.BuildConfig
 import io.github.aedev.flow.R
 import io.github.aedev.flow.data.youtubeaccount.YouTubeSignInProgress
 import io.github.aedev.flow.ui.screens.settings.youtubeaccount.YouTubeAccountViewModel
@@ -49,7 +51,13 @@ fun TvAccountSettingsPane(
     val signIn by viewModel.signIn.collectAsStateWithLifecycle()
     val syncing by viewModel.syncing.collectAsStateWithLifecycle()
     var message by remember { mutableStateOf<String?>(null) }
+    var showDiagnostics by remember { mutableStateOf(false) }
     LaunchedEffect(viewModel) { viewModel.messages.collect { message = it } }
+    val active = state.active
+    if (showDiagnostics && active != null) {
+        TvSyncDiagnosticsPanel(accountName = active.name, onClose = { showDiagnostics = false }, modifier = modifier)
+        return
+    }
 
     val progress = signIn
     if (progress != null) {
@@ -110,6 +118,14 @@ fun TvAccountSettingsPane(
                 leadingIcon = Icons.Outlined.PersonRemove,
                 onClick = { viewModel.remove(active.id) },
             )
+            if (BuildConfig.YOUTUBE_SYNC_DIAGNOSTICS) {
+                TvNavRow(
+                    label = stringResource(R.string.yt_probe_title),
+                    supportingText = stringResource(R.string.yt_probe_entry_summary),
+                    leadingIcon = Icons.Outlined.BugReport,
+                    onClick = { showDiagnostics = true },
+                )
+            }
         }
         message?.let {
             Text(

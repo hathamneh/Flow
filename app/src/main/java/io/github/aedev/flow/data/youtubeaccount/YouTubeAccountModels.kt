@@ -85,6 +85,8 @@ data class RemoteIdentity(
 data class PlaybackTrackingUrls(
     val playbackUrl: String,
     val watchtimeUrl: String?,
+    /** The video's length from the same response; null when the player left it out. */
+    val lengthSeconds: Long? = null,
 )
 
 data class RemoteChannel(
@@ -144,3 +146,16 @@ data class SyncProgress(
 ) {
     enum class Phase { HISTORY, SUBSCRIPTIONS, LIBRARY }
 }
+
+/** One bell choice for a channel: its raw state name, the params that select it, and whether it is current. */
+data class BellOption(
+    val state: String,
+    val params: String,
+    val selected: Boolean,
+)
+
+/** One entry of a playlist; [setVideoId] tells duplicate entries of a video apart. */
+data class PlaylistEntry(
+    val videoId: String,
+    val setVideoId: String?,
+)

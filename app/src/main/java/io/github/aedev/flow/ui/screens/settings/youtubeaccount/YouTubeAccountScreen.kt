@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AccountCircle
+import androidx.compose.material.icons.outlined.BugReport
 import androidx.compose.material.icons.outlined.PersonAdd
 import androidx.compose.material.icons.outlined.PersonOff
 import androidx.compose.material.icons.outlined.Sync
@@ -24,6 +25,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
+import io.github.aedev.flow.BuildConfig
 import io.github.aedev.flow.R
 import io.github.aedev.flow.data.youtubeaccount.YouTubeAccount
 import io.github.aedev.flow.ui.components.settings.SettingsGroupScope
@@ -49,6 +51,12 @@ internal fun YouTubeAccountScreen(
     val scope = rememberCoroutineScope()
     LaunchedEffect(viewModel) { viewModel.messages.collect { snackbarHostState.showSnackbar(it) } }
     var selectedId by rememberSaveable { mutableStateOf<String?>(null) }
+    var showDiagnostics by rememberSaveable { mutableStateOf(false) }
+    val active = state.active
+    if (showDiagnostics && active != null) {
+        YouTubeSyncDiagnosticsScreen(accountName = active.name, onBack = { showDiagnostics = false })
+        return
+    }
     val syncingLabel = stringResource(R.string.youtube_account_syncing)
     val labels =
         AccountRowLabels(
@@ -85,6 +93,19 @@ internal fun YouTubeAccountScreen(
                 showChevron = false,
                 onClick = viewModel::syncNow,
             )
+        }
+        if (BuildConfig.YOUTUBE_SYNC_DIAGNOSTICS && active != null) {
+            group(key = "youtube_account.debug") {
+                row("youtube_account.diagnostics") { shape ->
+                    FlowNavRow(
+                        title = stringResource(R.string.yt_probe_title),
+                        supportingText = stringResource(R.string.yt_probe_entry_summary),
+                        leadingIcon = Icons.Outlined.BugReport,
+                        shape = shape,
+                        onClick = { showDiagnostics = true },
+                    )
+                }
+            }
         }
     }
 

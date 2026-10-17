@@ -9,6 +9,8 @@ Status: approved by the owner on 2026-10-17. **Both decisions are made:**
 
    Make both with a version bump and an AutoMigration. The DB is at version 33 on this branch. This permission covers these additions only. Any other schema change still needs explicit approval (AGENTS.md rule 4).
 
+**Phase 0 is done.** Its results are in [PROBE_RESULTS.md](PROBE_RESULTS.md), and the phases below were adjusted to match on 2026-10-17.
+
 The research behind this plan, with sources, the capability matrix, rejected options and risks, is in [FINDINGS.md](FINDINGS.md). The current state of the branch and the environment notes are in [CONTEXT.md](CONTEXT.md).
 
 ## Goal
@@ -47,9 +49,8 @@ Pull (YouTubeAccountSync) ── light/first-page ──> three-way merge (fresh
    | `HistoryClear` | (no key given) |
    | `HistoryPaused(on)` | (no key given) |
    | `MarkWatched(videoId, durationMs)` | (no key given) |
-   | `Bell(channelId, state)` | (no key given) |
 
-   A like followed by an unlike collapses to one op, or to none if the result equals the remote snapshot.
+   A like followed by an unlike collapses to one op, or to none if the result equals the remote snapshot. `Rate(NONE)` is sent as `like/removelike`, which clears a like and a dislike alike; `like/removedislike` is 404. There is no `Bell` mutation: the probe showed the bell can't be written under TV auth.
 2. **`YouTubeOutbox`** is backed by a new Room table `youtube_outbox`. It's in the same transaction as the local write where practical. Columns: key (PK), payload JSON, enqueuedAt, attempts, lastError. It belongs to the profile automatically, because `flow_database` is a profile-owned file (see `data/profile/ProfileFiles.kt`). A DataStore fallback is acceptable if a transactional write is impractical at a call site.
 3. **`YouTubeOutboxWorker`** runs as unique one-time work `flow_youtube_outbox`.
    - Policy `APPEND_OR_REPLACE`, network CONNECTED, exponential backoff. It's enqueued on every mutation.
@@ -66,7 +67,7 @@ Pull (YouTubeAccountSync) ── light/first-page ──> three-way merge (fresh
    - The worker must no-op when the active profile has no account. WorkManager's DB is shared across profiles.
    - Model it on the Last.fm scrobble queue: `data/scrobble/ScrobbleStore.kt`, `Scrobbler.flush()`, `ScrobbleWorker`.
 4. **New `YouTubeAccountApi` write calls.** Use the same `innerTube()` request builder: TV context, Bearer, `X-Goog-Pageid`. See FINDINGS.md §2 for the endpoints and bodies.
-   - Add `next(videoId)` for like, subscribe and bell state.
+   - Add `next(videoId)` for like and subscribe state (done in Phase 0).
    - Add `historyFeedbackToken(videoId)`, which walks at most 3 FEhistory pages.
 5. **Hook points: the repositories' user-facing methods only.** Never hook the import paths.
 
@@ -102,7 +103,7 @@ Pull (YouTubeAccountSync) ── light/first-page ──> three-way merge (fresh
 - **Foreground light round** (already delayed 10 s after start; throttle at 5 min or more): fetch only the first page of each of FEhistory, FEchannels, VLWL and VLLL, stopping at the first known id. That's about 4 calls. If the first-page hash is unchanged, skip the DB work.
 - **Screen-open refresh:** a collection's screen refreshes only that collection, if its snapshot is older than 15 min. Pull-to-refresh forces a full walk of that collection. Playlists are refetched only when their aggregation tile (count, title or thumbnail) changed.
 - **Heavy walk:** keep the existing 6 h library cadence and the 3 h periodic job.
-- **Per-item read-through (Phase 4, measure first):** one `/next` per playback for like, subscribe and bell state, gated by more than 1 h of staleness.
+- **Per-item read-through (Phase 4, measure first):** one `/next` per playback for like and subscribe state, gated by more than 1 h of staleness.
 - YouTube has no push mechanism for this. Other installs see a change on their next foreground light round.
 
 ## Phases
@@ -131,33 +132,41 @@ The checks must clean up after themselves. Record the results in `docs/youtube-t
 
 ### Phase 1: outbox + likes, subscriptions, Watch Later (3–4 pd)
 
-- Build the schema change, the outbox, the worker and the API writes.
-- Hook the like, subscribe and Watch Later methods.
+All of these passed the probe, including dislikes and likes on music videos, which land in Liked music.
+
+- Build the schema change, the outbox and the worker. The API writes already exist from Phase 0 (`YouTubeAccountApi.rate`, `setSubscribed`, `editPlaylist`).
+- First, audit `SyncDataAccess`, `BackupRepository` and `YouTubeTakeoutImporter` (FINDINGS §6 question 6).
+- Hook the like, dislike, subscribe and Watch Later methods.
 - Use the snapshot three-way pull for those three collections.
 - Show the "couldn't sync" status line.
 
 ### Phase 2: playlists (3–4 pd)
 
+- **Create and delete are dead** (HTTP 400 with TV and WEB bodies, with and without `privacyStatus`). Flow-created playlists stay local with a "Flow only" badge; deleting one only deletes it locally.
 - Make the account's own playlists editable, using `remoteId`/ownership.
-- Support add, remove and rename; save and unsave someone else's playlist; and create/delete according to the probe results.
+- Add (with `DEDUPE_OPTION_SKIP`), remove, and reorder via `setVideoId` + `ACTION_MOVE_VIDEO_AFTER` all passed on Watch Later. Ship them for own playlists.
+- Rename is unverified. Before shipping it, run a one-off rename-and-restore probe on one of the owner's existing playlists, with their approval.
+- Save and unsave someone else's playlist (`like/like|removelike` with a playlist target): add it to the probe first.
 - Change the pull from replace to merge.
 
 ### Phase 3: history (2–3 pd)
 
-- Remove from history, using an on-demand feedback-token lookup.
-- Clear history; pause and resume history in both directions.
-- Mark watched through a full-length ping.
+- **Blocker first:** the TV `/player` response had no `playbackTracking` for the owner's account. That stops watched pings and the probe's history-removal check. It may also mean the existing history upload (`YouTubeWatchReporter`) silently does nothing. Find out why from the probe's `playabilityStatus` note, and fix it, before the rest of this phase.
+- Remove from history, using an on-demand feedback-token lookup (still unproven live).
+- Clear history.
+- Pause and resume are **Flow → YouTube only**: the calls are accepted, but the account's state can't be read back, so it's never pulled.
+- Mark watched through a full-length ping, once `/player` gives tracking URLs again.
 - Move the reporter's first "open" ping onto the outbox, so a failed ping isn't lost.
 
-### Phase 4: bell + read-through state (2 pd)
+### Phase 4: read-through state (1–2 pd)
 
-- Bell, using `/next`-based params.
-- Staleness-gated like and subscribe state on playback.
+- The bell is **dropped**. `modify_channel_preference` is 400; re-subscribing with the bell params is accepted, but it isn't reflected. The bell stays local to Flow.
+- Staleness-gated like and subscribe state on playback; `/next` reads both reliably.
 - Measure fetch counts per playback in logcat before enabling by default.
 
 ### Out of scope
 
-"Not interested" stays local, in Flow's own engine. YouTube Music library writes aren't possible: the TV token is rejected by WEB_REMIX. Comments are out.
+"Not interested" and the notification bell stay local to Flow. YouTube Music library writes aren't possible: the TV token is rejected by WEB_REMIX. Comments are out.
 
 ## Rules to keep
 

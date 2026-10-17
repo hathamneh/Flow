@@ -61,6 +61,7 @@ android {
         versionName = "2.2.1"
 
         buildConfigField("int", "NIGHTLY_RUN", "0")
+        buildConfigField("Boolean", "YOUTUBE_SYNC_DIAGNOSTICS", "false")
         buildConfigField("String", "APP_LANGUAGE_TAGS", "\"${(listOf("en") + translatedLocaleTags()).joinToString(",")}\"")
         // Last.fm keys come from the CI secrets; builds without them ask the viewer for their own key.
         buildConfigField("String", "LASTFM_API_KEY", "\"${secretValue("lastfmApiKey", "lastfm.apiKey", "LASTFM_API_KEY")}\"")
@@ -146,6 +147,7 @@ android {
             applicationIdSuffix = ".debug"
             versionNameSuffix = "-debug"
             buildConfigField("String", "UPDATE_CHANNEL", "\"stable\"")
+            buildConfigField("Boolean", "YOUTUBE_SYNC_DIAGNOSTICS", "true")
             isDebuggable = true
             isMinifyEnabled = false
             isShrinkResources = false
@@ -192,6 +194,7 @@ android {
             applicationIdSuffix = ".debug"
             versionNameSuffix = "-sync"
             matchingFallbacks += "release"
+            buildConfigField("Boolean", "YOUTUBE_SYNC_DIAGNOSTICS", "true")
             signingConfig = signingConfigs.getByName("debug")
         }
     }

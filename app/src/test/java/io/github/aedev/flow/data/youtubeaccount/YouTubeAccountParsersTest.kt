@@ -39,7 +39,8 @@ class YouTubeAccountParsersTest {
         val root =
             parse(
                 """
-                {"playbackTracking":{
+                {"videoDetails":{"videoId":"abc","lengthSeconds":"19"},
+                 "playbackTracking":{
                   "videostatsPlaybackUrl":{"baseUrl":"https://s.youtube.com/api/stats/playback?docid=abc&ei=E"},
                   "videostatsWatchtimeUrl":{"baseUrl":"https://s.youtube.com/api/stats/watchtime?docid=abc&ei=E"}}}
                 """,
@@ -49,6 +50,7 @@ class YouTubeAccountParsersTest {
 
         assertThat(urls?.playbackUrl).endsWith("/playback?docid=abc&ei=E")
         assertThat(urls?.watchtimeUrl).endsWith("/watchtime?docid=abc&ei=E")
+        assertThat(urls?.lengthSeconds).isEqualTo(19L)
     }
 
     @Test

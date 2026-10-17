@@ -7,6 +7,7 @@ import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.intOrNull
+import java.net.URLDecoder
 
 /**
  * Pure readers over the TV InnerTube responses the account features use. The TV renderers nest
@@ -22,6 +23,7 @@ internal object YouTubeAccountParsers {
     private val BUILT_IN_PLAYLISTS = setOf("LL", "LM", "WL")
     private val VIDEO_ID = Regex("[A-Za-z0-9_-]{11}")
     private val CHANNEL_ID = Regex("UC[A-Za-z0-9_-]{22}")
+    private val PLAYLIST_ENTRY_KEYS = listOf("tileRenderer", "playlistVideoRenderer")
 
     fun accounts(root: JsonElement): List<RemoteIdentity> =
         root
@@ -45,12 +47,22 @@ internal object YouTubeAccountParsers {
             }.toList()
 
     fun trackingUrls(root: JsonElement): PlaybackTrackingUrls? {
-        val tracking = (root as? JsonObject)?.obj("playbackTracking") ?: return null
+        val player = root as? JsonObject ?: return null
+        val tracking = player.obj("playbackTracking") ?: return null
         val playback = tracking.obj("videostatsPlaybackUrl")?.string("baseUrl") ?: return null
         return PlaybackTrackingUrls(
             playbackUrl = playback,
             watchtimeUrl = tracking.obj("videostatsWatchtimeUrl")?.string("baseUrl"),
+            lengthSeconds = player.obj("videoDetails")?.string("lengthSeconds")?.toLongOrNull(),
         )
+    }
+
+    /** `playabilityStatus` as "STATUS: reason", such as "LOGIN_REQUIRED: Sign in to confirm you're not a bot". */
+    fun playability(root: JsonElement): String? {
+        val status = (root as? JsonObject)?.obj("playabilityStatus") ?: return null
+        val code = status.string("status") ?: return null
+        val reason = status.text("reason") ?: status.objectsWithKey("subreason").firstNotNullOfOrNull { it.text("subreason") }
+        return if (reason == null) code else "$code: $reason"
     }
 
     /** Subscribed channels: the TV subscriptions page lists one tab (or tile) per channel. */
@@ -105,13 +117,7 @@ internal object YouTubeAccountParsers {
             val tile = holder.obj("tileRenderer") ?: return@forEach
             val type = tile.string("contentType")
             if (type != null && type != TILE_VIDEO && type != TILE_SHORTS) return@forEach
-            val videoId =
-                tile.string("contentId")?.takeIf { VIDEO_ID.matches(it) }
-                    ?: tile
-                        .obj("onSelectCommand")
-                        ?.obj("watchEndpoint")
-                        ?.string("videoId")
-                    ?: return@forEach
+            val videoId = tile.tileVideoId() ?: return@forEach
             val title = tile.tileTitle() ?: return@forEach
             val overlays = tile.objectsWithKey("thumbnailOverlayResumePlaybackRenderer")
             val lengthText =
@@ -139,6 +145,91 @@ internal object YouTubeAccountParsers {
         return found.values.toList()
     }
 
+    /** `likeStatus` (`LIKE`, `DISLIKE` or `INDIFFERENT`) of [videoId] on a `/next` page. */
+    fun likeStatus(
+        root: JsonElement,
+        videoId: String,
+    ): String? =
+        root
+            .objectsWithKey("likeStatus")
+            .firstOrNull { it.obj("target")?.string("videoId") == videoId }
+            ?.string("likeStatus")
+
+    /** Whether the account is subscribed to [channelId], from a subscribe button on the page; null when none is shown. */
+    fun isSubscribed(
+        root: JsonElement,
+        channelId: String,
+    ): Boolean? = subscribeButton(root, channelId)?.bool("subscribed")
+
+    /**
+     * The bell choices for [channelId], each with the params that select it. Older pages hang them off
+     * the subscribe button as toggle states; newer ones list them as list items with `isSelected`.
+     */
+    fun bellOptions(
+        root: JsonElement,
+        channelId: String,
+    ): List<BellOption> {
+        val toggle =
+            (subscribeButton(root, channelId) ?: root)
+                .objectsWithKey("subscriptionNotificationToggleButtonRenderer")
+                .firstNotNullOfOrNull { it.obj("subscriptionNotificationToggleButtonRenderer") }
+        if (toggle != null) {
+            val current = toggle.int("currentStateId")
+            return (toggle["states"] as? JsonArray)
+                .orEmpty()
+                .mapNotNull { element ->
+                    val state = element as? JsonObject ?: return@mapNotNull null
+                    BellOption(
+                        state = state.string("notificationState") ?: state.firstString("iconType") ?: return@mapNotNull null,
+                        params = state.bellParams() ?: return@mapNotNull null,
+                        selected = current != null && state.int("stateId") == current,
+                    )
+                }
+        }
+        return root
+            .objectsWithKey("listItemViewModel")
+            .mapNotNull { holder ->
+                val item = holder.obj("listItemViewModel") ?: return@mapNotNull null
+                BellOption(
+                    state = item.firstString("imageName") ?: return@mapNotNull null,
+                    params = item.bellParams() ?: return@mapNotNull null,
+                    selected = item.bool("isSelected") == true,
+                )
+            }.toList()
+    }
+
+    /** Video id → its "remove from watch history" token, for the history tiles on one page. */
+    fun historyFeedbackTokens(root: JsonElement): Map<String, String> {
+        val found = LinkedHashMap<String, String>()
+        root.objectsWithKey("tileRenderer").forEach { holder ->
+            val tile = holder.obj("tileRenderer") ?: return@forEach
+            val videoId = tile.tileVideoId() ?: return@forEach
+            val token =
+                tile
+                    .objectsWithKey("feedbackEndpoint")
+                    .firstNotNullOfOrNull { it.obj("feedbackEndpoint")?.string("feedbackToken") }
+                    ?: return@forEach
+            found.putIfAbsent(videoId, token)
+        }
+        return found
+    }
+
+    /**
+     * A playlist's entries in order, duplicates kept, each with the `setVideoId` that names the entry
+     * for moves and removals (null when the page carries none).
+     */
+    fun playlistEntries(root: JsonElement): List<PlaylistEntry> =
+        root
+            .objectsWithAnyKey(PLAYLIST_ENTRY_KEYS)
+            .mapNotNull { holder ->
+                val entry = PLAYLIST_ENTRY_KEYS.firstNotNullOfOrNull { holder.obj(it) } ?: return@mapNotNull null
+                val videoId = entry.tileVideoId() ?: entry.string("videoId") ?: return@mapNotNull null
+                PlaylistEntry(videoId, entry.firstString("setVideoId") ?: entry.firstString("playlistSetVideoId"))
+            }.toList()
+
+    /** The id `playlist/create` returns. */
+    fun createdPlaylistId(root: JsonElement): String? = root.firstString("playlistId")
+
     /** The token for the next page of a browse result, in either continuation shape YouTube uses. */
     fun continuation(root: JsonElement): String? =
         root.objectsWithKey("nextContinuationData").firstNotNullOfOrNull { it.obj("nextContinuationData")?.string("continuation") }
@@ -163,6 +254,23 @@ internal object YouTubeAccountParsers {
         return id?.takeIf { it.startsWith(CHANNEL_PREFIX) && CHANNEL_ID.matches(it) }
     }
 
+    private fun JsonObject.tileVideoId(): String? =
+        string("contentId")?.takeIf { VIDEO_ID.matches(it) }
+            ?: obj("onSelectCommand")?.obj("watchEndpoint")?.string("videoId")
+
+    private fun subscribeButton(
+        root: JsonElement,
+        channelId: String,
+    ): JsonObject? = root.objectsWithKey("subscribed").firstOrNull { it.string("channelId") == channelId }
+
+    /** Some pages URL-encode the params (`…%3D%3D`); the endpoint takes them decoded. */
+    private fun JsonObject.bellParams(): String? =
+        objectsWithKey("modifyChannelNotificationPreferenceEndpoint")
+            .firstNotNullOfOrNull { it.obj("modifyChannelNotificationPreferenceEndpoint")?.string("params") }
+            ?.let { if ('%' in it) URLDecoder.decode(it, Charsets.UTF_8.name()) else it }
+
+    private fun JsonElement.firstString(key: String): String? = objectsWithKey(key).firstNotNullOfOrNull { it.string(key) }
+
     private fun JsonObject.tileTitle(): String? = obj("metadata")?.obj("tileMetadataRenderer")?.text("title")
 
     private fun JsonObject.tileFirstLine(): String? =
@@ -182,14 +290,17 @@ internal object YouTubeAccountParsers {
 }
 
 /** Every object in the tree (this one included) that has [key] as a direct field. */
-internal fun JsonElement.objectsWithKey(key: String): Sequence<JsonObject> =
+internal fun JsonElement.objectsWithKey(key: String): Sequence<JsonObject> = objectsWithAnyKey(listOf(key))
+
+/** Every object in the tree (this one included) that has one of [keys] as a direct field, in document order. */
+internal fun JsonElement.objectsWithAnyKey(keys: List<String>): Sequence<JsonObject> =
     sequence {
         val stack = ArrayDeque<JsonElement>()
-        stack.addLast(this@objectsWithKey)
+        stack.addLast(this@objectsWithAnyKey)
         while (stack.isNotEmpty()) {
             when (val element = stack.removeLast()) {
                 is JsonObject -> {
-                    if (key in element) yield(element)
+                    if (keys.any { it in element }) yield(element)
                     element.values.reversed().forEach(stack::addLast)
                 }
 
