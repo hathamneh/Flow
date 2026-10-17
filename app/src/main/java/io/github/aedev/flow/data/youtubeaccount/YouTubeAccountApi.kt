@@ -174,7 +174,7 @@ class YouTubeAccountApi
             auth: Auth,
             videoId: String,
             signatureTimestamp: Int?,
-        ): JsonElement = innerTube("player", auth, Requests.player(videoId, signatureTimestamp))
+        ): JsonElement = innerTube("player", auth, Requests.player(videoId, signatureTimestamp), device = true)
 
         suspend fun browse(
             auth: Auth,
@@ -324,6 +324,7 @@ class YouTubeAccountApi
             auth: Auth,
             fields: JsonObject,
             client: AccountClient = AccountClient.TV,
+            device: Boolean = false,
         ): JsonElement =
             withContext(Dispatchers.IO) {
                 val locale = Locale.getDefault()
@@ -333,6 +334,7 @@ class YouTubeAccountApi
                         hl = locale.language.ifBlank { "en" },
                         gl = locale.country.ifBlank { "US" },
                         fields = fields,
+                        device = device,
                     )
                 val request =
                     Request

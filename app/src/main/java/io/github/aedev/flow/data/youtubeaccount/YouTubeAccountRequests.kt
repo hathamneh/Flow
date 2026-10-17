@@ -60,15 +60,27 @@ internal const val TV_USER_AGENT =
     "Mozilla/5.0 (ChromiumStylePlatform) Cobalt/25.lts.30.1034943-gold (unlike Gecko), " +
         "Unknown_TV_Unknown_0/Unknown (Unknown, Unknown)"
 private const val YOUTUBE = "https://www.youtube.com"
+
+// The Tizen TV that TV_USER_AGENT describes.
+private const val TV_OS_NAME = "Tizen"
+private const val TV_OS_VERSION = "4.0.0.2"
+private const val TV_DEVICE_MAKE = "Samsung"
+private const val TV_DEVICE_MODEL = "SmartTV"
 private const val MUSIC = "https://music.youtube.com"
 
 /** Pure builders for the signed-in request bodies, kept apart from the HTTP so they can be tested. */
 internal object YouTubeAccountRequests {
+    /**
+     * [device] adds the TV's OS and model, which `/player` needs from a TV client: without them it
+     * answers "The page needs to be reloaded", as `YouTubeClient.TV_TIZEN` found. The other calls
+     * work without them and are left as they were.
+     */
     fun body(
         client: AccountClient,
         hl: String,
         gl: String,
         fields: JsonObject,
+        device: Boolean = false,
     ): JsonObject =
         buildJsonObject {
             putJsonObject("context") {
@@ -82,6 +94,12 @@ internal object YouTubeAccountRequests {
                         putJsonObject("tvAppInfo") {
                             put("appQuality", "TV_APP_QUALITY_FULL_ANIMATION")
                             put("zylonLeftNav", true)
+                        }
+                        if (device) {
+                            put("osName", TV_OS_NAME)
+                            put("osVersion", TV_OS_VERSION)
+                            put("deviceMake", TV_DEVICE_MAKE)
+                            put("deviceModel", TV_DEVICE_MODEL)
                         }
                     }
                 }

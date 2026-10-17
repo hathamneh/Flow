@@ -46,7 +46,8 @@ private fun pingParams(
 /** The "mark as watched" every client fakes: a watch record opened and closed at the very end. */
 internal suspend fun SyncProbeSession.probeWatchedPing() {
     running(WATCHED_PING)
-    val urls = call { api.player(it, VIDEO, PipePipeNsigDecoder.signatureTimestamp()) }
+    val sts = PipePipeNsigDecoder.signatureTimestamp()
+    val urls = call { api.player(it, VIDEO, sts) }
     if (!urls.ok) return fail(WATCHED_PING, urls)
     val tracking = urls.value?.let(YouTubeAccountParsers::trackingUrls)
     val watchtimeUrl = tracking?.watchtimeUrl
@@ -54,7 +55,7 @@ internal suspend fun SyncProbeSession.probeWatchedPing() {
     if (tracking == null || watchtimeUrl == null || lengthS == null) {
         val missing =
             if (tracking == null) {
-                listOf("playbackTracking (${urls.value?.let(YouTubeAccountParsers::playability) ?: UNKNOWN})")
+                listOf("playbackTracking (${urls.value?.let(YouTubeAccountParsers::playability) ?: UNKNOWN}, sts=$sts)")
             } else {
                 listOfNotNull(
                     "videostatsWatchtimeUrl".takeIf { watchtimeUrl == null },

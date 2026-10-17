@@ -11,6 +11,7 @@ There were three runs:
 | 3 | 20:35 | fixed build | Full run, after the owner cleared the dislike. This is the reference run. |
 | 4–5 | 21:18, 21:23 | playability build | Broken by the phone: AdGuard's DNS protection began failing lookups partway through (`UnknownHostException`, cached within ms). 52 of 160 lookups failed in a burst test. Cleanup calls failed too (see below). |
 | 6 | 21:28 | playability build | With Flow excluded from AdGuard. Same results as run 3. The new playability note gave the `/player` answer. |
+| 7 | 21:41 | timestamp build | Clean full run; every check cleaned up after itself. Bell, music like, subscribe and unsubscribe pass or behave as in run 3. `/player` is still UNPLAYABLE ("The page needs to be reloaded") with the timestamp alone. The next build also sends the Tizen device fields (`osName`, `osVersion`, `deviceMake`, `deviceModel`) that `YouTubeClient.TV_TIZEN` needed to get past the same error, and the note now shows which timestamp was sent. |
 
 ## Results (run 3 unless noted)
 
