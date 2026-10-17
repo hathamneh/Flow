@@ -83,22 +83,6 @@ class YouTubeAccountRequestsTest {
     }
 
     @Test
-    fun `only a request that asks for it carries the TV's OS and model`() {
-        val fields = YouTubeAccountRequests.playlistId("PLx")
-
-        val plain = (YouTubeAccountRequests.body(AccountClient.TV, "en", "US", fields)["context"] as JsonObject)["client"] as JsonObject
-        val device =
-            (YouTubeAccountRequests.body(AccountClient.TV, "en", "US", fields, device = true)["context"] as JsonObject)["client"]
-                as JsonObject
-
-        assertThat(plain).doesNotContainKey("osName")
-        assertThat(device["osName"].toString()).isEqualTo("\"Tizen\"")
-        assertThat(device).containsKey("osVersion")
-        assertThat(device["deviceMake"].toString()).isEqualTo("\"Samsung\"")
-        assertThat(device).containsKey("deviceModel")
-    }
-
-    @Test
     fun `player variants differ only where the diagnostics mean them to`() {
         fun body(variant: PlayerVariant) = YouTubeAccountRequests.playerVariant(variant, "en", "US", "vid", 20739, "VISITOR")
 

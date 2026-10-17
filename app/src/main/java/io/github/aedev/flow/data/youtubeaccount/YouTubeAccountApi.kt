@@ -167,14 +167,15 @@ class YouTubeAccountApi
 
         /**
          * The signed-in `/player` response for [videoId], for its tracking URLs and playability; streams
-         * are ignored. [signatureTimestamp] is the current player's (`PipePipeNsigDecoder`); without it
-         * the response is UNPLAYABLE and has no tracking URLs.
+         * are ignored. Asked as the Tizen TV client: the Cobalt TV client the rest of the account calls
+         * use answers "The page needs to be reloaded" here whatever it sends (PROBE_RESULTS.md, runs 6–17).
+         * [signatureTimestamp] is the current player's (`PipePipeNsigDecoder`).
          */
         suspend fun player(
             auth: Auth,
             videoId: String,
             signatureTimestamp: Int?,
-        ): JsonElement = innerTube("player", auth, Requests.player(videoId, signatureTimestamp), device = true)
+        ): JsonElement = playerVariant(auth, PlayerVariant.TIZEN, videoId, signatureTimestamp, visitorData = null)
 
         /** `/player` asked as [variant], for the diagnostics to compare; the account calls use [player]. */
         suspend fun playerVariant(
@@ -364,7 +365,6 @@ class YouTubeAccountApi
             auth: Auth,
             fields: JsonObject,
             client: AccountClient = AccountClient.TV,
-            device: Boolean = false,
         ): JsonElement =
             withContext(Dispatchers.IO) {
                 val locale = Locale.getDefault()
@@ -374,7 +374,6 @@ class YouTubeAccountApi
                         hl = locale.language.ifBlank { "en" },
                         gl = locale.country.ifBlank { "US" },
                         fields = fields,
-                        device = device,
                     )
                 val request =
                     Request

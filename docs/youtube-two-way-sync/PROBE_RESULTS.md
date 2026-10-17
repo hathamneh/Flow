@@ -15,6 +15,7 @@ There were three runs:
 | 8 | 21:55 | device-fields build | Network dropped partway through (DNS); Flow was no longer routed through the AdGuard app, so the failing lookups came from elsewhere. Left the test channel subscribed; cleaned up in run 10. |
 | 9–10 | 21:58, 21:59 | device-fields build | AdGuard stopped. Clean full runs. `/player` still UNPLAYABLE ("The page needs to be reloaded") **with** `sts=20739` **and** the Tizen device fields. Next build adds a "player variants" check: TV, TV + visitor id, TV embedded player, WEB, and TV signed out, and the history checks use whichever returns tracking URLs. |
 | 11–16 | 22:17–22:25 | variants build | Four complete runs plus two cut short by DNS drops (they happen without AdGuard too). The last run left the account clean. `/player` variants: TV → UNPLAYABLE "The page needs to be reloaded"; TV + visitor id → same; TV embedded → ERROR "YouTube is no longer supported in this application or device"; WEB with the TV token → HTTP 400; TV signed out → LOGIN_REQUIRED "Sign in to confirm you're not a bot". The TV player's own script (`/s/player/0229cd64/tv-player-ias.js`, read from youtube.com/tv) has `signatureTimestamp:20739`, the value already sent, so a timestamp mismatch is ruled out. Next build adds TV with a WebPO token and its visitor, and the Tizen client (5.x) signed in. |
+| 17 | 22:39 | PO/Tizen build | Clean full run. **TIZEN (TVHTML5 5.20260707, Tizen 2.4.0 / Samsung / SmartTV, Bearer, sts 20739) → OK with `playbackTracking`.** TV with a minted WebPO token → still "The page needs to be reloaded". With the Tizen response: the watched ping's two calls answered 204/204, and remove-from-history **passed**: a test video was put into history, its feedback token found on FEhistory, and the `feedback` call took it out. |
 
 ## Results (run 3 unless noted)
 
@@ -61,7 +62,7 @@ Every check cleaned up after itself, except two:
 4. **Rename is unverified.** Phase 2 needs a one-off rename-and-restore probe on one of the owner's existing playlists, with their approval, before shipping rename.
 5. **The bell can't be written** under TV auth. Bell sync is dropped: the bell stays local to Flow.
 6. **History pause/resume is write-only.** Flow can send its own toggle to YouTube, but it can't learn the account's state, so it never pulls it.
-7. **`/player` returns no `playbackTracking`** for this token. Run 6 showed why: UNPLAYABLE, "The page needs to be reloaded", from the missing `signatureTimestamp`. The fix is in; a re-run must confirm it. Watched pings and "remove from history" are blocked by it. **So is the existing history upload (`YouTubeWatchReporter`), which uses the same call and returns silently when the URLs are missing.** The probe now records the `playabilityStatus` so the next run shows why. This has to be understood before Phase 3, and it's worth checking now whether Flow watches still reach youtube.com history.
+7. **`/player` needs the Tizen client.** With the Cobalt TV client (7.x) that every other account call uses, `/player` is UNPLAYABLE ("The page needs to be reloaded") whatever it sends: signature timestamp, device fields, visitor id, a WebPO token. The Tizen TV client (5.x) with the same token answers OK with tracking URLs (run 17). The account's `player()` now asks as Tizen, which also fixes the existing history upload (`YouTubeWatchReporter`); before this it had sent nothing. A full-length ping is accepted (204); whether it draws the watched bar is for the owner to confirm on youtube.com. Watched pings and "remove from history" are blocked by it. **So is the existing history upload (`YouTubeWatchReporter`), which uses the same call and returns silently when the URLs are missing.** The probe now records the `playabilityStatus` so the next run shows why. This has to be understood before Phase 3, and it's worth checking now whether Flow watches still reach youtube.com history.
 
 Open questions from FINDINGS.md §6:
 
@@ -69,7 +70,7 @@ Open questions from FINDINGS.md §6:
 |---|---|
 | 1 | No: create/delete fail with TV and WEB bodies. |
 | 2 | Yes on WL: `setVideoId` is exposed and `ACTION_MOVE_VIDEO_AFTER` works. |
-| 3 | Untested: blocked by the missing `playbackTracking`. |
+| 3 | Yes (run 17): the FEhistory tile carries a removal token, and `feedback` with it takes the video out of history. |
 | 4 | Yes: a music-video like lands in VLLM. Artist subscribe is untested, but plain subscribe works. |
 | 5 | Pause/resume are accepted; the state can't be read. |
 | 6 | Audited in Phase 1. Device sync and backup restore called the user-facing like/unsubscribe methods; they now pass `mirror = false`. See PLAN.md, "Phase 1 as built". |

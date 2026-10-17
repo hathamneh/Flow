@@ -267,4 +267,17 @@ class YouTubeAccountApiTest {
             // A single page with nothing after it is the whole list, even when the caller would stop there.
             assertThat(pagedApi(pages = 1).browsePages(auth, "VLWL", maxPages = 5) { false }).isTrue()
         }
+
+    @Test
+    fun `the account player call asks as the Tizen TV client with the signature timestamp`() =
+        runBlocking {
+            api { 200 to "{}" }.player(auth, "vid", signatureTimestamp = 20739)
+
+            val body = bodies.single()
+            assertThat(requests.single().url.encodedPath).isEqualTo("/youtubei/v1/player")
+            assertThat(requests.single().header("Authorization")).isEqualTo("Bearer AT")
+            assertThat(body).contains("\"osName\":\"Tizen\"")
+            assertThat(body).contains("\"clientVersion\":\"5.")
+            assertThat(body).contains("\"signatureTimestamp\":20739")
+        }
 }

@@ -99,17 +99,11 @@ private const val MUSIC = "https://music.youtube.com"
 
 /** Pure builders for the signed-in request bodies, kept apart from the HTTP so they can be tested. */
 internal object YouTubeAccountRequests {
-    /**
-     * [device] adds the TV's OS and model, which `/player` needs from a TV client: without them it
-     * answers "The page needs to be reloaded", as `YouTubeClient.TV_TIZEN` found. The other calls
-     * work without them and are left as they were.
-     */
     fun body(
         client: AccountClient,
         hl: String,
         gl: String,
         fields: JsonObject,
-        device: Boolean = false,
     ): JsonObject =
         buildJsonObject {
             putJsonObject("context") {
@@ -123,12 +117,6 @@ internal object YouTubeAccountRequests {
                         putJsonObject("tvAppInfo") {
                             put("appQuality", "TV_APP_QUALITY_FULL_ANIMATION")
                             put("zylonLeftNav", true)
-                        }
-                        if (device) {
-                            put("osName", TV_OS_NAME)
-                            put("osVersion", TV_OS_VERSION)
-                            put("deviceMake", TV_DEVICE_MAKE)
-                            put("deviceModel", TV_DEVICE_MODEL)
                         }
                     }
                 }
