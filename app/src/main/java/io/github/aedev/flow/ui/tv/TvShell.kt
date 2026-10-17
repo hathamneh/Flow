@@ -19,6 +19,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.media3.common.util.UnstableApi
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.currentBackStackEntryAsState
@@ -28,9 +30,12 @@ import io.github.aedev.flow.ui.screens.home.HomeViewModel
 import io.github.aedev.flow.ui.screens.music.MusicPlayerViewModel
 import io.github.aedev.flow.ui.screens.music.MusicViewModel
 import io.github.aedev.flow.ui.screens.search.SearchViewModel
+import io.github.aedev.flow.ui.screens.settings.youtubeaccount.YouTubeAccountViewModel
 import io.github.aedev.flow.ui.screens.subscriptions.SubscriptionsViewModel
 import io.github.aedev.flow.ui.tv.components.TvNavRail
 import io.github.aedev.flow.ui.tv.components.TvNowPlayingStrip
+import io.github.aedev.flow.ui.tv.components.TvProfilePanel
+import io.github.aedev.flow.ui.tv.components.TvRailProfile
 import io.github.aedev.flow.ui.tv.navigation.TvBackAction
 import io.github.aedev.flow.ui.tv.navigation.TvBackModel
 import io.github.aedev.flow.ui.tv.navigation.TvDestination
@@ -63,6 +68,9 @@ fun TvShell(
     val currentTab = TvDestination.fromRoute(currentRoute)
     val isOnDetailRoute = currentRoute != null && TvDestination.entries.none { it.route == currentRoute }
     var railHasFocus by remember { mutableStateOf(false) }
+    val accountViewModel: YouTubeAccountViewModel = hiltViewModel()
+    val accounts by accountViewModel.state.collectAsStateWithLifecycle()
+    var profilesOpen by remember { mutableStateOf(false) }
     val railFocusRequester = remember { FocusRequester() }
 
     val tabHistory = remember { mutableStateListOf<TvDestination>() }
@@ -129,6 +137,7 @@ fun TvShell(
             onSelected = ::selectTab,
             onFocusChanged = { railHasFocus = it },
             selectedFocusRequester = railFocusRequester,
+            profile = TvRailProfile(accounts.active) { profilesOpen = true },
             modifier =
                 Modifier
                     .align(Alignment.CenterStart)
@@ -150,6 +159,20 @@ fun TvShell(
                 TvBackAction.FOCUS_RAIL -> runCatching { railFocusRequester.requestFocus() }
                 TvBackAction.EXIT -> Unit
             }
+        }
+
+        TvProfilePanel(
+            visible = profilesOpen,
+            viewModel = accountViewModel,
+            onClose = {
+                profilesOpen = false
+                runCatching { railFocusRequester.requestFocus() }
+            },
+        )
+        BackHandler(enabled = profilesOpen) {
+            accountViewModel.dismissSignIn()
+            profilesOpen = false
+            runCatching { railFocusRequester.requestFocus() }
         }
     }
 }

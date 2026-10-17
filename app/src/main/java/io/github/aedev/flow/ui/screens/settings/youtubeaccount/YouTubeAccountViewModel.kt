@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import io.github.aedev.flow.R
+import io.github.aedev.flow.data.profile.ProfileSwitcher
 import io.github.aedev.flow.data.youtubeaccount.YouTubeAccountManager
 import io.github.aedev.flow.data.youtubeaccount.YouTubeAccountSync
 import io.github.aedev.flow.data.youtubeaccount.YouTubeAccountsState
@@ -32,6 +33,7 @@ class YouTubeAccountViewModel
         @ApplicationContext private val context: Context,
         private val manager: YouTubeAccountManager,
         private val sync: YouTubeAccountSync,
+        private val profiles: ProfileSwitcher,
     ) : SettingsViewModel() {
         val state: StateFlow<YouTubeAccountsState> = manager.state.asState(YouTubeAccountsState())
 
@@ -57,6 +59,8 @@ class YouTubeAccountViewModel
                         _signIn.value = progress
                         if (progress is YouTubeSignInProgress.Done) {
                             _messages.send(context.getString(R.string.youtube_account_signed_in, progress.account.name))
+                            // A new account opens its own profile, which restarts Flow and syncs from there.
+                            profiles.onSignedIn(progress.account.id)
                             syncNow()
                         }
                     }
@@ -70,13 +74,15 @@ class YouTubeAccountViewModel
             _signIn.value = null
         }
 
-        fun switchTo(id: String?) =
-            write {
-                manager.switchTo(id)
-                if (id != null) syncNow()
-            }
+        /** Opens another profile; Flow restarts into its data. */
+        fun switchTo(id: String?) = write { profiles.switchTo(id) }
 
-        fun remove(id: String) = write { manager.remove(id) }
+        /** Signs the account out and deletes its profile from this device. */
+        fun remove(id: String) =
+            write {
+                manager.remove(id)
+                profiles.onRemoved(id)
+            }
 
         fun setReportHistory(enabled: Boolean) = write { manager.setReportHistory(enabled) }
 

@@ -11,6 +11,7 @@ import dagger.hilt.android.HiltAndroidApp
 import io.github.aedev.flow.data.local.PlayerPreferences
 import io.github.aedev.flow.data.local.SubscriptionRepository
 import io.github.aedev.flow.data.local.ViewHistory
+import io.github.aedev.flow.data.profile.ProfileSwitcher
 import io.github.aedev.flow.data.repository.NewPipeDownloader
 import io.github.aedev.flow.data.repository.YouTubeRepository
 import io.github.aedev.flow.data.youtubeaccount.YouTubeWatchReporter
@@ -78,6 +79,9 @@ class FlowApplication :
     @Inject
     lateinit var youTubeWatchReporter: YouTubeWatchReporter
 
+    @Inject
+    lateinit var profileSwitcher: ProfileSwitcher
+
     override fun newImageLoader(context: PlatformContext): ImageLoader = imageLoader
 
     companion object {
@@ -87,6 +91,8 @@ class FlowApplication :
     }
 
     override fun attachBaseContext(base: Context) {
+        // Before anything opens a database or a store, so a profile switch swaps files no one holds.
+        ProfileSwitcher.applyPendingSwitch(base)
         super.attachBaseContext(AppLanguageManager.wrapContext(base, AppLanguageManager.resolveLanguageTag(base)))
     }
 
@@ -100,6 +106,7 @@ class FlowApplication :
 
         // Mirrors watch progress to the active Google account; does nothing in guest mode.
         ViewHistory.progressListener = youTubeWatchReporter
+        CoroutineScope(SupervisorJob() + Dispatchers.IO).launch { profileSwitcher.reconcile() }
 
         val playerPreferences = PlayerPreferences(this)
 

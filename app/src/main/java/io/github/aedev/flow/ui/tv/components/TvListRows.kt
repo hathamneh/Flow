@@ -27,6 +27,7 @@ fun TvSelectionRow(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     supportingText: String? = null,
+    leading: (@Composable () -> Unit)? = null,
 ) {
     TvCard(
         onClick = onClick,
@@ -41,6 +42,7 @@ fun TvSelectionRow(
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
+            leading?.invoke()
             Column(Modifier.weight(1f)) {
                 Text(
                     text = label,

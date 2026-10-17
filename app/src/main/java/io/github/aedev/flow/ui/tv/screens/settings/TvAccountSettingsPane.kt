@@ -122,7 +122,7 @@ fun TvAccountSettingsPane(
 }
 
 @Composable
-private fun TvSignInPanel(
+internal fun TvSignInPanel(
     progress: YouTubeSignInProgress,
     onRetry: () -> Unit,
     onClose: () -> Unit,

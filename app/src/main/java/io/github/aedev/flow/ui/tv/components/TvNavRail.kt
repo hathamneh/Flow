@@ -39,9 +39,12 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.github.aedev.flow.R
+import io.github.aedev.flow.data.youtubeaccount.YouTubeAccount
 import io.github.aedev.flow.ui.tv.navigation.TvDestination
 import io.github.aedev.flow.ui.tv.theme.LocalTvDimens
 
@@ -57,6 +60,7 @@ fun TvNavRail(
     onFocusChanged: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
     selectedFocusRequester: FocusRequester? = null,
+    profile: TvRailProfile? = null,
 ) {
     val dimens = LocalTvDimens.current
     var expanded by remember { mutableStateOf(false) }
@@ -66,36 +70,38 @@ fun TvNavRail(
     )
 
     Surface(
-        modifier = modifier
-            .width(width)
-            .fillMaxHeight()
-            .onFocusChanged {
-                expanded = it.hasFocus
-                onFocusChanged(it.hasFocus)
+        modifier =
+            modifier
+                .width(width)
+                .fillMaxHeight()
+                .onFocusChanged {
+                    expanded = it.hasFocus
+                    onFocusChanged(it.hasFocus)
+                },
+        color =
+            if (expanded) {
+                MaterialTheme.colorScheme.surfaceContainer
+            } else {
+                MaterialTheme.colorScheme.surfaceContainerLow
             },
-        color = if (expanded) {
-            MaterialTheme.colorScheme.surfaceContainer
-        } else {
-            MaterialTheme.colorScheme.surfaceContainerLow
-        },
         tonalElevation = if (expanded) 2.dp else 0.dp,
     ) {
         Column(
-            modifier = Modifier
-                .focusProperties {
-                    @OptIn(ExperimentalComposeUiApi::class)
-                    enter = { selectedFocusRequester ?: FocusRequester.Default }
-                    @OptIn(ExperimentalComposeUiApi::class)
-                    exit = { direction ->
-                        if (direction == FocusDirection.Left) {
-                            FocusRequester.Cancel
-                        } else {
-                            FocusRequester.Default
+            modifier =
+                Modifier
+                    .focusProperties {
+                        @OptIn(ExperimentalComposeUiApi::class)
+                        enter = { selectedFocusRequester ?: FocusRequester.Default }
+                        @OptIn(ExperimentalComposeUiApi::class)
+                        exit = { direction ->
+                            if (direction == FocusDirection.Left) {
+                                FocusRequester.Cancel
+                            } else {
+                                FocusRequester.Default
+                            }
                         }
-                    }
-                }
-                .focusGroup()
-                .padding(horizontal = 12.dp, vertical = dimens.overscanVertical),
+                    }.focusGroup()
+                    .padding(horizontal = 12.dp, vertical = dimens.overscanVertical),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Row(
@@ -138,12 +144,76 @@ fun TvNavRail(
                     selected = destination == selected,
                     expanded = expanded,
                     onClick = { onSelected(destination) },
-                    modifier = if (destination == selected && selectedFocusRequester != null) {
-                        Modifier.focusRequester(selectedFocusRequester)
-                    } else {
-                        Modifier
-                    },
+                    modifier =
+                        if (destination == selected && selectedFocusRequester != null) {
+                            Modifier.focusRequester(selectedFocusRequester)
+                        } else {
+                            Modifier
+                        },
                 )
+            }
+            profile?.let {
+                Spacer(Modifier.weight(1f))
+                TvProfileRailItem(profile = it, expanded = expanded)
+            }
+        }
+    }
+}
+
+/** Who is watching, shown at the foot of the rail; selecting it opens the profile picker. */
+class TvRailProfile(
+    val account: YouTubeAccount?,
+    val onClick: () -> Unit,
+)
+
+@Composable
+private fun TvProfileRailItem(
+    profile: TvRailProfile,
+    expanded: Boolean,
+) {
+    var focused by remember { mutableStateOf(false) }
+    val name = profile.account?.name ?: stringResource(R.string.profile_guest)
+    val switchLabel = stringResource(R.string.profile_switch)
+    Surface(
+        onClick = profile.onClick,
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .onFocusChanged { focused = it.isFocused }
+                .semantics { contentDescription = "$switchLabel, $name" },
+        shape = CircleShape,
+        color = if (focused) MaterialTheme.colorScheme.inverseSurface else Color.Transparent,
+        contentColor =
+            if (focused) {
+                MaterialTheme.colorScheme.inverseOnSurface
+            } else {
+                MaterialTheme.colorScheme.onSurfaceVariant
+            },
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            TvProfileAvatar(profile.account, size = 32.dp)
+            AnimatedVisibility(
+                visible = expanded,
+                enter = fadeIn() + expandHorizontally(),
+                exit = fadeOut() + shrinkHorizontally(),
+            ) {
+                Column {
+                    Text(
+                        text = name,
+                        style = MaterialTheme.typography.titleMedium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Text(
+                        text = switchLabel,
+                        style = MaterialTheme.typography.bodySmall,
+                        maxLines = 1,
+                    )
+                }
             }
         }
     }
@@ -161,20 +231,23 @@ private fun TvRailItem(
 
     Surface(
         onClick = onClick,
-        modifier = modifier
-            .fillMaxWidth()
-            .onFocusChanged { focused = it.isFocused },
+        modifier =
+            modifier
+                .fillMaxWidth()
+                .onFocusChanged { focused = it.isFocused },
         shape = CircleShape,
-        color = when {
-            focused -> MaterialTheme.colorScheme.inverseSurface
-            selected -> MaterialTheme.colorScheme.secondaryContainer
-            else -> Color.Transparent
-        },
-        contentColor = when {
-            focused -> MaterialTheme.colorScheme.inverseOnSurface
-            selected -> MaterialTheme.colorScheme.onSecondaryContainer
-            else -> MaterialTheme.colorScheme.onSurfaceVariant
-        },
+        color =
+            when {
+                focused -> MaterialTheme.colorScheme.inverseSurface
+                selected -> MaterialTheme.colorScheme.secondaryContainer
+                else -> Color.Transparent
+            },
+        contentColor =
+            when {
+                focused -> MaterialTheme.colorScheme.inverseOnSurface
+                selected -> MaterialTheme.colorScheme.onSecondaryContainer
+                else -> MaterialTheme.colorScheme.onSurfaceVariant
+            },
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 11.dp, vertical = 12.dp),

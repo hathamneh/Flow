@@ -4346,7 +4346,7 @@
     <string name="settings_keywords_youtube_account">google youtube account sign in login history sync subscriptions switch</string>
     <string name="youtube_account_accounts">Accounts</string>
     <string name="youtube_account_guest">Use without an account</string>
-    <string name="youtube_account_guest_summary">Nothing is sent to Google</string>
+    <string name="youtube_account_guest_summary">A profile of its own; nothing is sent to Google</string>
     <string name="youtube_account_active">Active</string>
     <string name="youtube_account_needs_sign_in">Sign in again</string>
     <string name="youtube_account_add">Add account</string>
@@ -4377,5 +4377,11 @@
     <string name="youtube_account_try_again">Try again</string>
     <string name="youtube_account_use">Use this account</string>
     <string name="youtube_account_remove">Remove account</string>
-    <string name="youtube_account_remove_summary">Signs this account out of Flow. Your local history stays.</string>
+    <string name="profile_picker_title">Who\'s watching?</string>
+    <string name="profile_switch">Switch profile</string>
+    <string name="profile_guest">Guest</string>
+    <string name="profile_guest_summary">Not linked to Google</string>
+    <string name="profile_add_summary">A new profile with its own history</string>
+    <string name="profile_switch_note">Flow restarts to open another profile.</string>
+    <string name="youtube_account_remove_summary">Signs this account out and deletes its profile from this device: its history, likes and suggestions here.</string>
 </resources>
