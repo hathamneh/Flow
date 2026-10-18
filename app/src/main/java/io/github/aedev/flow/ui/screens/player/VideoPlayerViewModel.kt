@@ -82,6 +82,7 @@ class VideoPlayerViewModel
         private val localMediaDetails: LocalMediaDetails,
         private val lifecyclePlayback: LifecyclePlaybackPreferences,
         private val autoDownload: AutoDownloadTrigger,
+        private val readThrough: io.github.aedev.flow.data.youtubeaccount.YouTubeReadThrough,
         @NetworkIoDispatcher private val networkDispatcher: CoroutineDispatcher,
         @IoDispatcher private val ioDispatcher: CoroutineDispatcher,
     ) : ViewModel() {
@@ -532,10 +533,16 @@ class VideoPlayerViewModel
 
         fun removeLikeState(videoId: String) = engagementState.removeLike(videoId)
 
+        /** Also asks the signed-in account for the current state, so a change made elsewhere shows. */
         fun loadSubscriptionAndLikeState(
             channelId: String,
             videoId: String,
-        ) = engagementState.observe(channelId, videoId)
+        ) {
+            engagementState.observe(channelId, videoId)
+            _uiState.value.cachedVideo
+                ?.takeIf { it.id == videoId }
+                ?.let(readThrough::onVideoOpened)
+        }
 
         fun toggleAutoplay(enabled: Boolean) = settings.toggleAutoplay(enabled)
 

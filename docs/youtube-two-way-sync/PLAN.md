@@ -223,6 +223,14 @@ All of these passed the probe, including dislikes and likes on music videos, whi
 - Staleness-gated like and subscribe state on playback; `/next` reads both reliably.
 - Measure fetch counts per playback in logcat before enabling by default.
 
+#### Phase 4 as built
+
+- `YouTubeReadThrough.onVideoOpened(video)` is called from the video player's `loadSubscriptionAndLikeState`. It's player only; Shorts and quick actions aren't read.
+- It waits 3 s, and a newer video cancels the wait, so skipping through videos reads none. Each video is read at most once per 30 min (in-memory, 200 videos). One `/next` request per read.
+- `readThroughFix` (pure, tested): YouTube's like state and subscription replace Flow's when the page shows them and nothing for that video or channel is queued in the outbox. Writes use `mirror = false` and run under `outbox.exclusive`.
+- On by default. Logcat tag `YouTubeReadThrough` logs each read (`#n this run`) and each skip, to measure the cost per playback.
+- The bell stays local.
+
 ### Out of scope
 
 "Not interested" and the notification bell stay local to Flow. YouTube Music library writes aren't possible: the TV token is rejected by WEB_REMIX. Comments are out.
