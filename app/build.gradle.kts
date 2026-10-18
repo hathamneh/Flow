@@ -57,8 +57,8 @@ android {
         applicationId = "io.github.aedev.flow"
         minSdk = 26
         targetSdk = 36
-        versionCode = 18
-        versionName = "2.2.1"
+        versionCode = 19
+        versionName = "3.0.0"
 
         buildConfigField("int", "NIGHTLY_RUN", "0")
         buildConfigField("Boolean", "YOUTUBE_SYNC_DIAGNOSTICS", "false")

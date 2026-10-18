@@ -138,6 +138,7 @@ internal fun SettingsHomeScreen(
                         onDurationClick = { showDurationDialog = true },
                         onSaveHistoryChange = viewModel::setDeepFlowSaveToHistory,
                         onScrobbleChange = viewModel::setDeepFlowScrobble,
+                        onShowOnSearchChange = viewModel::setDeepFlowOnSearch,
                         onCheckForUpdates = viewModel::checkForUpdates,
                     ),
             )

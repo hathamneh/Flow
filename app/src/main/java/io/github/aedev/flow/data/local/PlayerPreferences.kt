@@ -330,6 +330,7 @@ class PlayerPreferences(
         val AUTO_DOWNLOAD_LIKED_MUSIC = booleanPreferencesKey("auto_download_liked_music")
         val RECAP_SOURCE = stringPreferencesKey("recap_source")
         val HIDDEN_MUSIC_HOME_SHELVES = stringSetPreferencesKey("hidden_music_home_shelves")
+        val HIDDEN_LIBRARY_SECTIONS = stringSetPreferencesKey("hidden_library_sections")
         val SPEED_PER_CHANNEL = booleanPreferencesKey("speed_per_channel")
         val CHANNEL_PLAYBACK_SPEEDS = stringSetPreferencesKey("channel_playback_speeds")
 
@@ -416,6 +417,7 @@ class PlayerPreferences(
         val DEEP_FLOW_EXPIRE_HOURS = intPreferencesKey("deep_flow_expire_hours")
         val DEEP_FLOW_SAVE_HISTORY = booleanPreferencesKey("deep_flow_save_history")
         val DEEP_FLOW_SCROBBLE = booleanPreferencesKey("deep_flow_scrobble")
+        val DEEP_FLOW_ON_SEARCH = booleanPreferencesKey("deep_flow_on_search")
 
         // Home subscription feed rotation cursor
         val HOME_SUBS_ROTATION_CURSOR = intPreferencesKey("home_subs_rotation_cursor")
@@ -2126,6 +2128,21 @@ class PlayerPreferences(
         }
     }
 
+    val hiddenLibrarySections: Flow<Set<String>> =
+        context.playerPreferencesDataStore.data
+            .map { preferences -> preferences[Keys.HIDDEN_LIBRARY_SECTIONS].orEmpty() }
+            .distinctUntilChanged()
+
+    suspend fun setLibrarySectionHidden(
+        section: String,
+        hidden: Boolean,
+    ) {
+        context.playerPreferencesDataStore.edit { preferences ->
+            val current = preferences[Keys.HIDDEN_LIBRARY_SECTIONS].orEmpty()
+            preferences[Keys.HIDDEN_LIBRARY_SECTIONS] = if (hidden) current + section else current - section
+        }
+    }
+
     /** The Everything, Videos or Music tab the recap was last left on. */
     val recapSource: Flow<String?> = context.playerPreferencesDataStore.data.map { preferences -> preferences[Keys.RECAP_SOURCE] }
 
@@ -3631,6 +3648,17 @@ class PlayerPreferences(
     suspend fun setDeepFlowScrobble(enabled: Boolean) {
         context.playerPreferencesDataStore.edit { preferences ->
             preferences[Keys.DEEP_FLOW_SCROBBLE] = enabled
+        }
+    }
+
+    /** Off by default: the search screen shows its Deep Flow switch only once this is turned on. */
+    val deepFlowOnSearch: Flow<Boolean> =
+        context.playerPreferencesDataStore.data
+            .map { preferences -> preferences[Keys.DEEP_FLOW_ON_SEARCH] ?: false }
+
+    suspend fun setDeepFlowOnSearch(enabled: Boolean) {
+        context.playerPreferencesDataStore.edit { preferences ->
+            preferences[Keys.DEEP_FLOW_ON_SEARCH] = enabled
         }
     }
 
