@@ -97,3 +97,7 @@ Rule: owned = `playlistEditEndpoint` present **and** no `likeEndpoint` (`YouTube
 ## Phase 2 live check (2026-10-18)
 
 After Sync now, Books became an editable Flow playlist. A reorder and a rename in Flow were sent (`plorder:` and `plname:` SENT), and the owner confirmed both on YouTube.
+
+## Phase 3 live check (2026-10-18)
+
+The owner confirmed it works on youtube.com. The outbox log shows `hist:KkL-h7bd78Q SENT` and `hist:jNQXAC9IVRw SENT`.
