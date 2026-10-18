@@ -201,7 +201,6 @@ android {
 
     sourceSets {
         getByName("androidTest").assets.directories.add("$projectDir/schemas")
-        getByName("sync").res.directories.add("src/debug/res")
     }
 
     compileOptions {
@@ -244,6 +243,11 @@ baselineProfile {
 // CI nightlies are numbered by workflow run: versionCode = run, versionName = <next>-nightly.<run>+<sha>.
 // Local nightly builds keep defaultConfig's version, so they never replace a CI nightly.
 androidComponents {
+    // This fork's release is signed with its own key, so it gets its own app id and installs next to
+    // the official Flow. Debug, sync and nightly builds keep the upstream id.
+    onVariants(selector().withBuildType("release")) { variant ->
+        variant.applicationId.set("com.hathamneh.flow")
+    }
     onVariants(selector().withBuildType("nightly")) { variant ->
         val run = providers.environmentVariable("GITHUB_RUN_NUMBER").map(String::toInt)
         val sha = providers.environmentVariable("GITHUB_SHA").map { it.take(7) }
