@@ -101,3 +101,7 @@ After Sync now, Books became an editable Flow playlist. A reorder and a rename i
 ## Phase 3 live check (2026-10-18)
 
 The owner confirmed it works on youtube.com. The outbox log shows `hist:KkL-h7bd78Q SENT` and `hist:jNQXAC9IVRw SENT`.
+
+## Phase 4 live check (2026-10-18)
+
+kWFUEmIAinI was liked on youtube.com. The first read (07:56:11) still saw it unliked, probably because it came before the like took effect. A reopen 35 s later was skipped by the 30-minute window. After an app restart, the read applied LIKED (07:57:24). The read-through works. The owner chose to keep the 30-minute window, so a like made on YouTube right after Flow read the video shows on the next sync or after 30 min.
